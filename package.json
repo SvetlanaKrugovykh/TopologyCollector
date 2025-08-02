@@ -1,0 +1,35 @@
+{
+  "name": "topology-collector",
+  "version": "1.0.0",
+  "description": "Network device configuration and MAC table collector for switches and OLTs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "collect-configs": "node index.js --configs",
+    "collect-macs": "node index.js --macs",
+    "collect-all": "node index.js --all",
+    "test-connection": "node test-connection.js",
+    "manage-devices": "node manage-devices.js"
+  },
+  "keywords": [
+    "network",
+    "switch",
+    "olt",
+    "telnet",
+    "config",
+    "mac-address"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "telnet-client": "^2.2.1",
+    "dotenv": "^16.3.1",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "winston": "^3.11.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
