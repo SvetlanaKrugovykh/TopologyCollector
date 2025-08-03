@@ -55,9 +55,9 @@ async function testConnection() {
     
     // Test command
     console.log(chalk.yellow('\nExecuting test command...'));
-    const result = await connection.exec('show version');
-    console.log(chalk.cyan('\nResult of "show version" command:'));
-    console.log(result.substring(0, 500) + (result.length > 500 ? '...' : ''));
+    const result = await connection.exec('help');
+    console.log(chalk.cyan('\nResult of "help" command:'));
+    console.log(result.substring(0, 1000) + (result.length > 1000 ? '...' : ''));
     
     await connection.end();
     console.log(chalk.green('\n✓ Connection closed successfully'));
