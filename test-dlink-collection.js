@@ -246,7 +246,7 @@ async function testDLinkDataCollection() {
       ],
       paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
-        config: ["show config effective"],
+        config: [],
         mac: ["show fdb"]
       },
       description: "D-Link_Switch_212"
