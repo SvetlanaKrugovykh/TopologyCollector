@@ -15,14 +15,8 @@ async function testIntegration() {
     const collector = new TopologyCollector()
     await collector.init()
     
-    // Ask for password
-    await collector.askForPassword()
-    
-    console.log(chalk.yellow('\n=== Testing config collection ==='))
-    await collector.collectConfigs()
-    
-    console.log(chalk.yellow('\n=== Testing MAC table collection ==='))
-    await collector.collectMacTables()
+    console.log(chalk.yellow('\n=== Testing complete collection (configs + MAC tables) ==='))
+    await collector.collectAll()
     
     console.log(chalk.green('\n✓ Integration test completed successfully!'))
     
