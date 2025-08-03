@@ -3,7 +3,7 @@
 require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
-const { TelnetClient } = require('telnet-client');
+const TelnetClient = require('telnet-client');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 const winston = require('winston');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 require('dotenv').config();
-const { TelnetClient } = require('telnet-client');
+const TelnetClient = require('telnet-client');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 
