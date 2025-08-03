@@ -88,31 +88,44 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // Simple exec method with longer timeout for show fdb
-  const isShowFdb = command === 'show fdb';
-  const execTimeout = isShowFdb ? 30000 : 5000; // 30 seconds for FDB, 5 for others
-  
   try {
-    console.log(chalk.yellow(`\nExecuting command with exec(): ${command}`));
-    if (isShowFdb) {
-      console.log(chalk.gray(`Using extended timeout: ${execTimeout}ms`));
+    console.log(chalk.yellow(`\nExecuting command: ${command}`));
+    
+    // Send command and get full response
+    const fullResponse = await connection.exec(command);
+    console.log(chalk.gray(`Full response length: ${fullResponse.length} chars`));
+    console.log(chalk.gray(`Full response: "${fullResponse}"`));
+    
+    // Clean the response - remove command echo and prompts
+    let cleanResult = fullResponse;
+    
+    // Remove the command itself from the beginning
+    const commandIndex = cleanResult.indexOf(command);
+    if (commandIndex !== -1) {
+      cleanResult = cleanResult.substring(commandIndex + command.length);
     }
     
-    const result = await connection.exec(command, { timeout: execTimeout });
-    console.log(chalk.green(`✓ Command executed successfully with exec()`));
-    console.log(chalk.gray(`Result length: ${result.length} chars`));
-    console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
+    // Remove trailing prompt (DGS-3420-26SC:admin# or similar)
+    cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '');
+    cleanResult = cleanResult.replace(/[#$>]\s*$/, '');
+    
+    // Remove leading/trailing whitespace and control characters
+    cleanResult = cleanResult.trim();
+    
+    console.log(chalk.green(`✓ Command executed successfully`));
+    console.log(chalk.gray(`Clean result length: ${cleanResult.length} chars`));
+    console.log(chalk.gray(`Clean result preview: "${cleanResult.substring(0, 200)}"`));
     
     // Handle pagination if needed
-    if (needsMoreInput(result, device)) {
+    if (needsMoreInput(cleanResult, device)) {
       console.log(chalk.cyan('Pagination detected, handling...'));
       const additionalOutput = await handleMoreInput(connection, device);
-      return result + additionalOutput;
+      return cleanResult + additionalOutput;
     }
     
-    return result;
+    return cleanResult;
   } catch (error) {
-    console.log(chalk.red(`exec() failed: ${error.message}`));
+    console.log(chalk.red(`Command failed: ${error.message}`));
     throw error;
   }
 }
@@ -251,12 +264,12 @@ async function testDLinkDataCollection() {
         host: device.ip,
         port: 23,
         shellPrompt: /[$%#>]/,
-        timeout: 20000, // Longer timeout for FDB command
+        timeout: 45000, // Very long timeout
         loginPrompt: /(username|login)[: ]*$/i,
         passwordPrompt: /password[: ]*$/i,
         username: device.username,
         password: password,
-        execTimeout: 15000, // Much longer exec timeout for FDB
+        execTimeout: 45000, // Very long exec timeout
         debug: false
       };
 
