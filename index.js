@@ -130,6 +130,7 @@ class NetworkDeviceCollector {
     const brand = device.brand
     if (brand && this.brandSettings[brand]) {
       logger.debug(`Using brand settings for ${device.ip} (${brand})`)
+      logger.debug(`Brand settings for ${brand}:`, JSON.stringify(this.brandSettings[brand]))
       return this.brandSettings[brand]
     }
     
