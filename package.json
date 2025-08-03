@@ -11,6 +11,7 @@
     "collect-all": "node index.js --all",
     "test-connection": "node test-connection.js",
     "test-collection": "node test-collection.js",
+    "test-dlink": "node test-dlink-collection.js",
     "manage-devices": "node manage-devices.js"
   },
   "keywords": [
