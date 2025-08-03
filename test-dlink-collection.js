@@ -169,20 +169,20 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       host: device.ip,
       port: 23,
       shellPrompt: /[$%#>]/,
-      timeout: 15000,
+      timeout: 20000, // Longer timeout
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: password,
-      execTimeout: 5000,
+      execTimeout: 10000, // Longer exec timeout
       debug: commandType === 'CONFIG' ? false : true  // Different debug settings
     };
 
     await connection.connect(params);
     console.log(chalk.green(`✓ Connected to ${device.ip}`));
 
-    // Small delay to ensure connection is stable
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Longer delay to ensure connection is fully stable for D-Link
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Enter privileged mode if required
     if (device.requiresEnable && device.enableCommand) {
@@ -278,6 +278,10 @@ async function testDLinkDataCollection() {
         await testConnection.connect(testParams);
         await testConnection.end();
         console.log(chalk.green(`✓ Password validated successfully`));
+        
+        // Wait a bit before actual data collection to ensure device is ready
+        console.log(chalk.gray('Waiting for device to be ready...'));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         break; // Password is correct, exit loop
         
       } catch (error) {
@@ -327,6 +331,10 @@ async function testDLinkDataCollection() {
         console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
       }
     }
+
+    // Wait between commands to avoid overwhelming the device
+    console.log(chalk.gray('Waiting before FDB collection...'));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Test MAC commands with separate connection
     console.log(chalk.cyan('\n=== Collecting FDB Table ==='));
