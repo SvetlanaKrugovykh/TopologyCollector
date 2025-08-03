@@ -92,7 +92,6 @@ async function executeCommand(connection, command, device) {
   
   return new Promise((resolve, reject) => {
     let fullResult = '';
-    let commandSent = false;
     let isComplete = false;
     
     connection.shell((error, stream) => {
@@ -103,33 +102,28 @@ async function executeCommand(connection, command, device) {
       
       console.log(chalk.gray('Started shell session'));
       
+      // Send command immediately without waiting for prompt
+      setTimeout(() => {
+        console.log(chalk.gray(`Sending command immediately: ${command}`));
+        stream.write(command + '\r\n');
+      }, 500); // Small delay to establish session
+      
       stream.on('data', (data) => {
         const output = data.toString();
         fullResult += output;
         
         console.log(chalk.blue(`Received: "${output}"`));
         
-        // Wait for prompt, then send command
-        if (!commandSent && output.match(/[$%#>]\s*$/)) {
-          console.log(chalk.gray(`Sending command: ${command}`));
-          stream.write(command + '\r\n');
-          commandSent = true;
-          return;
+        // Check for D-Link pagination patterns
+        if (needsMoreInput(output, device)) {
+          console.log(chalk.cyan('Pagination detected - sending "a"...'));
+          stream.write('a');
         }
-        
-        // After command is sent, look for pagination or completion
-        if (commandSent) {
-          // Check for D-Link pagination patterns
-          if (needsMoreInput(output, device)) {
-            console.log(chalk.cyan('Pagination detected - sending "a"...'));
-            stream.write('a');
-          }
-          // Check if command is complete (ends with prompt again)
-          else if (output.match(/[$%#>]\s*$/)) {
-            console.log(chalk.green('Command completed - prompt detected'));
-            isComplete = true;
-            stream.end();
-          }
+        // Check if command is complete (ends with prompt)
+        else if (output.match(/[$%#>]\s*$/) && fullResult.length > command.length + 10) {
+          console.log(chalk.green('Command completed - prompt detected'));
+          isComplete = true;
+          stream.end();
         }
       });
       
@@ -171,7 +165,7 @@ async function executeCommand(connection, command, device) {
           console.log(chalk.yellow('Command timeout - forcing completion'));
           stream.end();
         }
-      }, 30000);
+      }, 15000); // Reduced timeout
     });
   });
 }
