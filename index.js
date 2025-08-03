@@ -505,35 +505,9 @@ async function main() {
     } else if (args.includes('--all')) {
       await collector.collectAll()
     } else {
-      // Interactive menu
-      const answers = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'action',
-          message: 'Choose action:',
-          choices: [
-            { name: 'Collect configurations', value: 'configs' },
-            { name: 'Collect MAC tables', value: 'macs' },
-            { name: 'Collect all', value: 'all' },
-            { name: 'Exit', value: 'exit' }
-          ]
-        }
-      ])
-
-      switch (answers.action) {
-        case 'configs':
-          await collector.collectConfigs()
-          break
-        case 'macs':
-          await collector.collectMacTables()
-          break
-        case 'all':
-          await collector.collectAll()
-          break
-        case 'exit':
-          logger.info('Exiting program')
-          process.exit(0)
-      }
+      // Auto collect both configs and MAC tables (like in test scripts)
+      logger.info('Starting automatic collection of configurations and MAC tables')
+      await collector.collectAll()
     }
 
     logger.info('Data collection completed')

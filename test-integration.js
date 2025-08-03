@@ -7,10 +7,8 @@ const chalk = require('chalk')
 
 async function testIntegration() {
   try {
-    // Test with DLinks.json file
-    process.env.DEVICES_FILE = 'DLinks.json'
-    
-    console.log(chalk.blue('=== Testing integrated D-Link collection ===\n'))
+    // Use DEVICES_FILE from .env file
+    console.log(chalk.blue(`=== Testing integrated collection with ${process.env.DEVICES_FILE || 'default devices file'} ===\n`))
     
     const collector = new TopologyCollector()
     await collector.init()
