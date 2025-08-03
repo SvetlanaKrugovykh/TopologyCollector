@@ -197,7 +197,7 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       username: device.username,
       password: password,
       execTimeout: 5000,
-      debug: false
+      debug: true
     };
 
     await connection.connect(params);
@@ -239,7 +239,7 @@ async function testDLinkDataCollection() {
       username: "admin",
       password: null,
       enableCommand: "enable", // D-Link может требовать enable
-      requiresEnable: false, // D-Link НЕ поддерживает enable
+      requiresEnable: false, // ОТКЛЮЧЕНО для простого подключения
       paginationPrompts: [
         "q Quit SPACE n Next Page ENTER Next Entry a All",
         "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
