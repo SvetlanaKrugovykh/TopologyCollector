@@ -8,49 +8,51 @@ const chalk = require('chalk');
 const inquirer = require('inquirer');
 
 // Functions for handling pagination
-function needsMoreInput(output) {
-  const morePatterns = [
+function needsMoreInput(output, device) {
+  // Use device-specific pagination prompts if available
+  const prompts = device.paginationPrompts || [
     /--More--/i,
     /Press any key to continue/i,
     /Press SPACE to continue/i,
     /Press Enter to continue/i,
     /\[Press 'A' for All or ENTER to continue\]/i,
-    /Type <CR> to continue/i,
-    /-- More --/i,
-    /\(more\)/i,
-    /\[more\]/i,
-    /press any key/i,
-    /press space/i,
-    /press enter/i,
-    /continue/i
+    /Type <CR> to continue/i
   ];
   
-  const hasMore = morePatterns.some(pattern => pattern.test(output));
+  // Convert string prompts to regex
+  const patterns = prompts.map(prompt => {
+    if (typeof prompt === 'string') {
+      return new RegExp(prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    }
+    return prompt;
+  });
+  
+  const hasMore = patterns.some(pattern => pattern.test(output));
   
   if (hasMore) {
-    console.log(chalk.blue(`DEBUG: Pagination detected with pattern matching`));
+    console.log(chalk.blue(`DEBUG: Pagination detected with BDCOM pattern`));
   }
   
   return hasMore;
 }async function handleMoreInput(connection, device) {
   let additionalOutput = '';
   let attempts = 0;
-  const maxAttempts = 200; // Увеличиваем до 200 попыток для больших конфигураций
+  const maxAttempts = 200;
+  const inputChar = device.paginationInput || ' ';
 
-  console.log(chalk.cyan(`  Starting pagination handling...`));
+  console.log(chalk.cyan(`  Starting pagination handling with input: "${inputChar}"`));
 
   while (attempts < maxAttempts) {
     try {
-      // Send space to continue
-      console.log(chalk.gray(`    Sending SPACE to continue... (${attempts + 1}/${maxAttempts})`));
-      const moreResult = await connection.exec(' ');
+      console.log(chalk.gray(`    Sending "${inputChar}" to continue... (${attempts + 1}/${maxAttempts})`));
+      const moreResult = await connection.exec(inputChar);
       additionalOutput += moreResult;
       
       // Show last part of current result
       console.log(chalk.blue(`    Last 100 chars: "${moreResult.slice(-100)}"`));
 
       // Check if we need to continue
-      if (!needsMoreInput(moreResult)) {
+      if (!needsMoreInput(moreResult, device)) {
         console.log(chalk.green(`  ✓ Pagination completed after ${attempts + 1} attempts`));
         break;
       }
@@ -82,7 +84,7 @@ async function executeCommand(connection, command, device) {
     console.log(chalk.blue(`"${result.slice(-200)}"`));
 
     // Check if additional interaction is required
-    if (needsMoreInput(result)) {
+    if (needsMoreInput(result, device)) {
       console.log(chalk.cyan('  Device requires additional input for pagination'));
       result += await handleMoreInput(connection, device);
     } else {
@@ -106,6 +108,8 @@ async function testDataCollection() {
       password: null,
       enableCommand: "enable",
       requiresEnable: true,
+      paginationPrompts: ["--More--"],
+      paginationInput: " ",
       commands: {
         config: ["show running-config"],
         mac: ["show mac address-table"]
