@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-require('dotenv').config();
-const { Telnet } = require('telnet-client');
-const chalk = require('chalk');
-const inquirer = require('inquirer');
+require('dotenv').config()
+const { Telnet } = require('telnet-client')
+const chalk = require('chalk')
+const inquirer = require('inquirer')
 
 async function testConnection() {
   try {
@@ -13,11 +13,11 @@ async function testConnection() {
         name: 'ip',
         message: 'Enter device IP address for testing:',
         validate: (input) => {
-          const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+          const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
           if (!ipRegex.test(input)) {
-            return 'Enter a valid IP address';
+            return 'Enter a valid IP address'
           }
-          return true;
+          return true
         }
       },
       {
@@ -32,11 +32,11 @@ async function testConnection() {
         message: 'Enter password:',
         mask: '*'
       }
-    ]);
+    ])
 
-    console.log(chalk.yellow(`\nConnecting to ${answers.ip}...`));
+    console.log(chalk.yellow(`\nConnecting to ${answers.ip}...`))
 
-    const connection = new Telnet();
+    const connection = new Telnet()
     const params = {
       host: answers.ip,
       port: 23,
@@ -48,38 +48,38 @@ async function testConnection() {
       password: answers.password,
       execTimeout: 10000,
       debug: true
-    };
+    }
 
-    await connection.connect(params);
-    console.log(chalk.green(`✓ Successful connection to ${answers.ip}`));
+    await connection.connect(params)
+    console.log(chalk.green(`✓ Successful connection to ${answers.ip}`))
     
     // Test command
-    console.log(chalk.yellow('\nExecuting test command...'));
-    const result = await connection.exec('help');
-    console.log(chalk.cyan('\nResult of "help" command:'));
-    console.log(result.substring(0, 1000) + (result.length > 1000 ? '...' : ''));
+    console.log(chalk.yellow('\nExecuting test command...'))
+    const result = await connection.exec('help')
+    console.log(chalk.cyan('\nResult of "help" command:'))
+    console.log(result.substring(0, 1000) + (result.length > 1000 ? '...' : ''))
     
-    await connection.end();
-    console.log(chalk.green('\n✓ Connection closed successfully'));
+    await connection.end()
+    console.log(chalk.green('\n✓ Connection closed successfully'))
 
   } catch (error) {
-    console.error(chalk.red(`\n✗ Connection error: ${error.message}`));
+    console.error(chalk.red(`\n✗ Connection error: ${error.message}`))
     
     if (error.message.includes('ECONNREFUSED')) {
-      console.log(chalk.yellow('Possible causes:'));
-      console.log('  - Telnet not enabled on device');
-      console.log('  - Device unreachable');
-      console.log('  - Firewall blocking connection');
+      console.log(chalk.yellow('Possible causes:'))
+      console.log('  - Telnet not enabled on device')
+      console.log('  - Device unreachable')
+      console.log('  - Firewall blocking connection')
     } else if (error.message.includes('timeout')) {
-      console.log(chalk.yellow('Possible causes:'));
-      console.log('  - Slow network');
-      console.log('  - Incorrect credentials');
-      console.log('  - Device overloaded');
+      console.log(chalk.yellow('Possible causes:'))
+      console.log('  - Slow network')
+      console.log('  - Incorrect credentials')
+      console.log('  - Device overloaded')
     }
   }
 }
 
 if (require.main === module) {
-  console.log(chalk.cyan('=== Device Connection Test ===\n'));
-  testConnection().catch(console.error);
+  console.log(chalk.cyan('=== Device Connection Test ===\n'))
+  testConnection().catch(console.error)
 }

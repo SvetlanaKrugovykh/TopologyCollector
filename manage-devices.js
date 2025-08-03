@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-const fs = require('fs').promises;
-const path = require('path');
-const inquirer = require('inquirer');
-const chalk = require('chalk');
+const fs = require('fs').promises
+const path = require('path')
+const inquirer = require('inquirer')
+const chalk = require('chalk')
 
 // Load environment variables
-require('dotenv').config();
+require('dotenv').config()
 
 // Build full path to devices file
-const dataDir = process.env.DATA_DIR || './data';
-const devicesFileName = process.env.DEVICES_FILE || 'devices.json';
-const devicesFile = path.join(dataDir, devicesFileName);
+const dataDir = process.env.DATA_DIR || './data'
+const devicesFileName = process.env.DEVICES_FILE || 'devices.json'
+const devicesFile = path.join(dataDir, devicesFileName)
 
 // Predefined commands for different vendors
 const vendorCommands = {
@@ -43,26 +43,26 @@ const vendorCommands = {
     config: [''],
     mac: ['']
   }
-};
+}
 
 async function loadDevices() {
   try {
-    const data = await fs.readFile(devicesFile, 'utf8');
-    return JSON.parse(data);
+    const data = await fs.readFile(devicesFile, 'utf8')
+    return JSON.parse(data)
   } catch (error) {
     if (error.code === 'ENOENT') {
-      return [];
+      return []
     }
-    throw error;
+    throw error
   }
 }
 
 async function saveDevices(devices) {
-  await fs.writeFile(devicesFile, JSON.stringify(devices, null, 2), 'utf8');
+  await fs.writeFile(devicesFile, JSON.stringify(devices, null, 2), 'utf8')
 }
 
 async function addDevice() {
-  console.log(chalk.cyan('=== Adding New Device ===\n'));
+  console.log(chalk.cyan('=== Adding New Device ===\n'))
 
   const answers = await inquirer.prompt([
     {
@@ -70,11 +70,11 @@ async function addDevice() {
       name: 'ip',
       message: 'Device IP address:',
       validate: (input) => {
-        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
         if (!ipRegex.test(input)) {
-          return 'Enter a valid IP address';
+          return 'Enter a valid IP address'
         }
-        return true;
+        return true
       }
     },
     {
@@ -113,7 +113,7 @@ async function addDevice() {
       name: 'requiresEnable',
       message: 'Does this device require "enable" command for privileged mode?',
       default: function(answers) {
-        return answers.vendor === 'cisco' || answers.vendor === 'bdcom';
+        return answers.vendor === 'cisco' || answers.vendor === 'bdcom'
       }
     },
     {
@@ -122,7 +122,7 @@ async function addDevice() {
       message: 'Enable command:',
       default: 'enable',
       when: function(answers) {
-        return answers.requiresEnable;
+        return answers.requiresEnable
       }
     },
     {
@@ -130,14 +130,14 @@ async function addDevice() {
       name: 'description',
       message: 'Device description:'
     }
-  ]);
+  ])
 
   // Get commands for selected vendor
-  let commands = vendorCommands[answers.vendor] || vendorCommands.custom;
+  let commands = vendorCommands[answers.vendor] || vendorCommands.custom
 
   // If custom selected or need to change commands
   if (answers.vendor === 'custom') {
-    console.log(chalk.yellow('\nCommand setup:'));
+    console.log(chalk.yellow('\nCommand setup:'))
     
     const configCommands = await inquirer.prompt([
       {
@@ -146,7 +146,7 @@ async function addDevice() {
         message: 'Configuration command:',
         default: 'show running-config'
       }
-    ]);
+    ])
 
     const macCommands = await inquirer.prompt([
       {
@@ -155,17 +155,17 @@ async function addDevice() {
         message: 'MAC table command:',
         default: 'show mac address-table'
       }
-    ]);
+    ])
 
     commands = {
       config: [configCommands.config],
       mac: [macCommands.mac]
-    };
+    }
   } else {
     // Show selected commands and offer to change them
-    console.log(chalk.green(`\nSelected commands for ${answers.vendor}:`));
-    console.log(chalk.gray(`Configuration: ${commands.config.join(', ')}`));
-    console.log(chalk.gray(`MAC table: ${commands.mac.join(', ')}`));
+    console.log(chalk.green(`\nSelected commands for ${answers.vendor}:`))
+    console.log(chalk.gray(`Configuration: ${commands.config.join(', ')}`))
+    console.log(chalk.gray(`MAC table: ${commands.mac.join(', ')}`))
     
     const changeCommands = await inquirer.prompt([
       {
@@ -174,7 +174,7 @@ async function addDevice() {
         message: 'Change commands?',
         default: false
       }
-    ]);
+    ])
 
     if (changeCommands.change) {
       const customCommands = await inquirer.prompt([
@@ -190,12 +190,12 @@ async function addDevice() {
           message: 'MAC table command:',
           default: commands.mac[0]
         }
-      ]);
+      ])
 
       commands = {
         config: [customCommands.config],
         mac: [customCommands.mac]
-      };
+      }
     }
   }
 
@@ -209,13 +209,13 @@ async function addDevice() {
     enableCommand: answers.enableCommand || null,
     commands: commands,
     description: answers.description
-  };
+  }
 
   // Load existing devices
-  const devices = await loadDevices();
+  const devices = await loadDevices()
 
   // Check if device with this IP already exists
-  const existingDevice = devices.find(d => d.ip === device.ip);
+  const existingDevice = devices.find(d => d.ip === device.ip)
   if (existingDevice) {
     const overwrite = await inquirer.prompt([
       {
@@ -224,58 +224,58 @@ async function addDevice() {
         message: `Device with IP ${device.ip} already exists. Overwrite?`,
         default: false
       }
-    ]);
+    ])
 
     if (!overwrite.overwrite) {
-      console.log(chalk.yellow('Operation cancelled.'));
-      return;
+      console.log(chalk.yellow('Operation cancelled.'))
+      return
     }
 
     // Remove old device
-    const index = devices.findIndex(d => d.ip === device.ip);
-    devices.splice(index, 1);
+    const index = devices.findIndex(d => d.ip === device.ip)
+    devices.splice(index, 1)
   }
 
   // Add new device
-  devices.push(device);
+  devices.push(device)
 
   // Save
-  await saveDevices(devices);
+  await saveDevices(devices)
 
-  console.log(chalk.green(`\n✓ Device ${device.ip} successfully added!`));
-  console.log(chalk.gray(`Total devices in list: ${devices.length}`));
+  console.log(chalk.green(`\n✓ Device ${device.ip} successfully added!`))
+  console.log(chalk.gray(`Total devices in list: ${devices.length}`))
 }
 
 async function listDevices() {
-  const devices = await loadDevices();
+  const devices = await loadDevices()
   
   if (devices.length === 0) {
-    console.log(chalk.yellow('Device list is empty.'));
-    return;
+    console.log(chalk.yellow('Device list is empty.'))
+    return
   }
 
-  console.log(chalk.cyan('\n=== Device List ==='));
+  console.log(chalk.cyan('\n=== Device List ==='))
   devices.forEach((device, index) => {
-    console.log(chalk.yellow(`${index + 1}. ${device.ip} - ${device.description}`));
-    console.log(chalk.gray(`   Type: ${device.type}, Vendor: ${device.vendor}`));
-    console.log(chalk.gray(`   Config: ${device.commands.config.join(', ')}`));
-    console.log(chalk.gray(`   MAC: ${device.commands.mac.join(', ')}`));
-    console.log('');
-  });
+    console.log(chalk.yellow(`${index + 1}. ${device.ip} - ${device.description}`))
+    console.log(chalk.gray(`   Type: ${device.type}, Vendor: ${device.vendor}`))
+    console.log(chalk.gray(`   Config: ${device.commands.config.join(', ')}`))
+    console.log(chalk.gray(`   MAC: ${device.commands.mac.join(', ')}`))
+    console.log('')
+  })
 }
 
 async function removeDevice() {
-  const devices = await loadDevices();
+  const devices = await loadDevices()
   
   if (devices.length === 0) {
-    console.log(chalk.yellow('Device list is empty.'));
-    return;
+    console.log(chalk.yellow('Device list is empty.'))
+    return
   }
 
   const choices = devices.map((device, index) => ({
     name: `${device.ip} - ${device.description}`,
     value: index
-  }));
+  }))
 
   const answer = await inquirer.prompt([
     {
@@ -284,9 +284,9 @@ async function removeDevice() {
       message: 'Select device to remove:',
       choices: choices
     }
-  ]);
+  ])
 
-  const device = devices[answer.deviceIndex];
+  const device = devices[answer.deviceIndex]
   
   const confirm = await inquirer.prompt([
     {
@@ -295,19 +295,19 @@ async function removeDevice() {
       message: `Remove device ${device.ip} - ${device.description}?`,
       default: false
     }
-  ]);
+  ])
 
   if (confirm.confirm) {
-    devices.splice(answer.deviceIndex, 1);
-    await saveDevices(devices);
-    console.log(chalk.green(`✓ Device ${device.ip} removed!`));
+    devices.splice(answer.deviceIndex, 1)
+    await saveDevices(devices)
+    console.log(chalk.green(`✓ Device ${device.ip} removed!`))
   } else {
-    console.log(chalk.yellow('Operation cancelled.'));
+    console.log(chalk.yellow('Operation cancelled.'))
   }
 }
 
 async function main() {
-  console.log(chalk.cyan('=== Device Management ===\n'));
+  console.log(chalk.cyan('=== Device Management ===\n'))
 
   const action = await inquirer.prompt([
     {
@@ -321,21 +321,21 @@ async function main() {
         { name: 'Exit', value: 'exit' }
       ]
     }
-  ]);
+  ])
 
   switch (action.action) {
     case 'add':
-      await addDevice();
-      break;
+      await addDevice()
+      break
     case 'list':
-      await listDevices();
-      break;
+      await listDevices()
+      break
     case 'remove':
-      await removeDevice();
-      break;
+      await removeDevice()
+      break
     case 'exit':
-      console.log(chalk.green('Exiting program.'));
-      process.exit(0);
+      console.log(chalk.green('Exiting program.'))
+      process.exit(0)
   }
 
   // Ask if need to continue
@@ -346,16 +346,16 @@ async function main() {
       message: 'Continue working?',
       default: true
     }
-  ]);
+  ])
 
   if (continueWork.continue) {
-    await main();
+    await main()
   }
 }
 
 if (require.main === module) {
   main().catch(error => {
-    console.error(chalk.red(`Error: ${error.message}`));
-    process.exit(1);
-  });
+    console.error(chalk.red(`Error: ${error.message}`))
+    process.exit(1)
+  })
 }
