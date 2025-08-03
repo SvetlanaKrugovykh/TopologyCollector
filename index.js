@@ -174,14 +174,21 @@ class NetworkDeviceCollector {
       logger.info(`Successfully connected to ${device.ip}`)
       
       // Enter privileged mode if required
-      if (settings.requiresEnable && device.enableCommand) {
+      logger.debug(`Checking enable requirements for ${device.ip}: settings.requiresEnable=${settings.requiresEnable}, device.requiresEnable=${device.requiresEnable}, device.enableCommand=${device.enableCommand}`)
+      
+      if ((settings.requiresEnable || device.requiresEnable) && device.enableCommand) {
         try {
+          console.log(chalk.cyan(`✓ Enable condition met for ${device.ip} - sending command: ${device.enableCommand}`))
           logger.info(`Entering privileged mode on ${device.ip} with command: ${device.enableCommand}`)
           await connection.exec(device.enableCommand)
+          console.log(chalk.green(`✓ Successfully entered privileged mode on ${device.ip}`))
           logger.info(`Successfully entered privileged mode on ${device.ip}`)
         } catch (error) {
+          console.log(chalk.red(`✗ Failed to enter privileged mode on ${device.ip}: ${error.message}`))
           logger.warn(`Failed to enter privileged mode on ${device.ip}: ${error.message}`)
         }
+      } else {
+        console.log(chalk.gray(`- No enable command needed for ${device.ip}`))
       }
       
       return connection
