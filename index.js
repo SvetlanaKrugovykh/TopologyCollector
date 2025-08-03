@@ -435,11 +435,15 @@ class NetworkDeviceCollector {
   }
 
   needsMoreInput(output, device) {
-    // D-Link specific patterns
+    // D-Link specific patterns (flexible patterns from working test)
     const dlinkPatterns = [
-      /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
+      /Quit.*SPACE.*Next.*Page/i,
+      /SPACE.*n.*Next.*Page/i,
+      /ENTER.*Next.*Entry.*a.*All/i,
+      /a All/i,
+      /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All\s*/i,   // backup exact pattern
       /Press any key to continue \(Q to quit\)/i,
-      /CTRL\+C ESC q Quit SPACE n Next Page/i
+      /CTRL\+C ESC q Quit SPACE n Next Page\s*/i
     ]
     
     // Standard patterns for OLTs and other devices
@@ -459,6 +463,14 @@ class NetworkDeviceCollector {
     
     if (brand === 'd-link' || brand === 'dlink') {
       patterns = dlinkPatterns
+      // Debug output for D-Link
+      const hasMore = patterns.some(pattern => pattern.test(output))
+      if (hasMore) {
+        logger.debug(`D-Link pagination pattern matched in: "${output.slice(-100)}"`)
+      } else {
+        logger.debug(`D-Link pagination pattern NOT matched in: "${output.slice(-100)}"`)
+      }
+      return hasMore
     } else {
       patterns = standardPatterns
     }
