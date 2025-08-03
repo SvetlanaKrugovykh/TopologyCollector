@@ -88,27 +88,14 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // Try exec method first for D-Link
-  try {
-    console.log(chalk.yellow(`\nTrying command with exec(): ${command}`));
-    const result = await connection.exec(command);
-    console.log(chalk.green(`✓ Command executed successfully with exec()`));
-    console.log(chalk.gray(`Result length: ${result.length} chars`));
-    console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
-    return result;
-  } catch (execError) {
-    console.log(chalk.red(`exec() failed: ${execError.message}`));
-    console.log(chalk.yellow(`Falling back to shell() method...`));
-  }
-
-  // Fallback to shell method
+  // For D-Link devices, prefer shell() method over exec()
+  console.log(chalk.yellow(`\nExecuting command with shell(): ${command}`));
+  
   return new Promise((resolve, reject) => {
-    console.log(chalk.yellow(`\nTrying command with shell(): ${command}`));
-    
     let fullResult = '';
     let isComplete = false;
     
-    // Use shell() method for raw interaction
+    // Use shell() method for D-Link compatibility
     connection.shell((error, stream) => {
       if (error) {
         reject(error);
@@ -133,24 +120,17 @@ async function executeCommand(connection, command, device) {
         else if (output.match(/[$%#>]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
-          
-          // Immediately resolve with result before ending stream
-          resolve(fullResult);
-          
-          // Then end the stream
-          setTimeout(() => {
-            stream.end();
-          }, 100);
+          stream.end();
         }
       });
       
       stream.on('close', () => {
         console.log(chalk.gray('Shell session closed'));
-        if (isComplete) {
+        if (fullResult.length > 0) {
           console.log(chalk.green(`✓ Command completed, result length: ${fullResult.length}`));
           resolve(fullResult);
         } else {
-          reject(new Error('Command did not complete properly'));
+          reject(new Error('Command completed but no result received'));
         }
       });
       
@@ -161,8 +141,6 @@ async function executeCommand(connection, command, device) {
       
       // Send the command
       console.log(chalk.gray(`Sending command: "${command}"`));
-      console.log(chalk.gray(`Command length: ${command.length} chars`));
-      console.log(chalk.gray(`Command bytes: ${JSON.stringify(command.split(''))}`));
       stream.write(command + '\r\n');
       
       // Set timeout for safety
@@ -176,7 +154,7 @@ async function executeCommand(connection, command, device) {
             reject(new Error('Command timeout with no result'));
           }
         }
-      }, 120000); // 2 minutes timeout
+      }, 60000); // 1 minute timeout
     });
   });
 }
@@ -197,11 +175,14 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       username: device.username,
       password: password,
       execTimeout: 5000,
-      debug: true
+      debug: commandType === 'CONFIG' ? false : true  // Different debug settings
     };
 
     await connection.connect(params);
     console.log(chalk.green(`✓ Connected to ${device.ip}`));
+
+    // Small delay to ensure connection is stable
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Enter privileged mode if required
     if (device.requiresEnable && device.enableCommand) {
@@ -211,6 +192,7 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
     }
 
     // Execute the command
+    console.log(chalk.gray(`Executing command: ${command}`));
     const result = await executeCommand(connection, command, device);
     
     await connection.end();
