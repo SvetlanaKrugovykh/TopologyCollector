@@ -16,6 +16,8 @@ async function testDataCollection() {
       vendor: "BDCOM",
       username: "admin",
       password: null,
+      enableCommand: "enable",
+      requiresEnable: true,
       commands: {
         config: ["show running-config"],
         mac: ["show mac address-table"]
@@ -52,6 +54,17 @@ async function testDataCollection() {
 
     await connection.connect(params);
     console.log(chalk.green(`✓ Connected to ${device.ip}`));
+
+    // Enter privileged mode if required
+    if (device.requiresEnable && device.enableCommand) {
+      try {
+        console.log(chalk.yellow(`\nEntering privileged mode with command: ${device.enableCommand}`));
+        await connection.exec(device.enableCommand);
+        console.log(chalk.green('✓ Entered privileged mode'));
+      } catch (error) {
+        console.log(chalk.red(`✗ Failed to enter privileged mode: ${error.message}`));
+      }
+    }
 
     // First, get available commands
     console.log(chalk.cyan('\n=== Getting Available Commands ==='));

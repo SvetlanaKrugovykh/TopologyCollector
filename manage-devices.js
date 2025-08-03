@@ -103,6 +103,23 @@ async function addDevice() {
       default: 'admin'
     },
     {
+      type: 'confirm',
+      name: 'requiresEnable',
+      message: 'Does this device require "enable" command for privileged mode?',
+      default: function(answers) {
+        return answers.vendor === 'cisco' || answers.vendor === 'bdcom';
+      }
+    },
+    {
+      type: 'input',
+      name: 'enableCommand',
+      message: 'Enable command:',
+      default: 'enable',
+      when: function(answers) {
+        return answers.requiresEnable;
+      }
+    },
+    {
       type: 'input',
       name: 'description',
       message: 'Device description:'
@@ -182,6 +199,8 @@ async function addDevice() {
     vendor: answers.vendor,
     username: answers.username,
     password: null,
+    requiresEnable: answers.requiresEnable || false,
+    enableCommand: answers.enableCommand || null,
     commands: commands,
     description: answers.description
   };

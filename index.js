@@ -113,6 +113,18 @@ class NetworkDeviceCollector {
       logger.info(`Connecting to device ${device.ip} (${device.description})`);
       await connection.connect(params);
       logger.info(`Successfully connected to ${device.ip}`);
+      
+      // Enter privileged mode if required
+      if (device.requiresEnable && device.enableCommand) {
+        try {
+          logger.info(`Entering privileged mode on ${device.ip} with command: ${device.enableCommand}`);
+          await connection.exec(device.enableCommand);
+          logger.info(`Successfully entered privileged mode on ${device.ip}`);
+        } catch (error) {
+          logger.warn(`Failed to enter privileged mode on ${device.ip}: ${error.message}`);
+        }
+      }
+      
       return connection;
     } catch (error) {
       logger.error(`Connection error to ${device.ip}: ${error.message}`);
