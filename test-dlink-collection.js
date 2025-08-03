@@ -204,42 +204,28 @@ async function testDLinkDataCollection() {
             message: attempt === 1 
               ? 'Enter device password:' 
               : `Enter device password (attempt ${attempt}/${maxPasswordAttempts}):`,
-            mask: '*'
+            mask: '*',
+            maskSymbol: '*'
           }
         ]);
         
         password = answers.password;
         
-        // Quick test connection to validate password
-        console.log(chalk.gray(`Testing connection with provided password...`));
-        const testConnection = new Telnet();
-        const testParams = {
-          host: device.ip,
-          port: 23,
-          shellPrompt: /[$%#>]/,
-          timeout: 15000,
-          loginPrompt: /(username|login)[: ]*$/i,
-          passwordPrompt: /password[: ]*$/i,
-          username: device.username,
-          password: password,
-          execTimeout: 5000,
-          debug: false
-        };
+        // Show password feedback
+        if (password && password.length > 0) {
+          console.log(chalk.green(`✓ Password entered (${password.length} characters)`));
+        } else {
+          console.log(chalk.red(`✗ No password entered`));
+          continue; // Try again
+        }
         
-        await testConnection.connect(testParams);
-        await testConnection.end();
-        console.log(chalk.green(`✓ Password validated successfully`));
-        
-        // Wait a bit before actual data collection to ensure device is ready
-        console.log(chalk.gray('Waiting for device to be ready...'));
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        break; // Password is correct, exit loop
+        break; // Password entered, proceed
         
       } catch (error) {
-        console.log(chalk.red(`✗ Connection failed: ${error.message}`));
+        console.log(chalk.red(`✗ Error getting password: ${error.message}`));
         
         if (attempt === maxPasswordAttempts) {
-          throw new Error(`Failed to authenticate after ${maxPasswordAttempts} attempts`);
+          throw new Error(`Failed to get password after ${maxPasswordAttempts} attempts`);
         } else {
           console.log(chalk.yellow(`Please try again...`));
         }
