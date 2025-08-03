@@ -42,11 +42,12 @@ async function testConnection() {
       port: 23,
       shellPrompt: /[$%#>]/,
       timeout: 15000,
-      loginPrompt: /login[: ]*$/i,
+      loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: answers.username,
       password: answers.password,
-      execTimeout: 10000
+      execTimeout: 10000,
+      debug: true
     };
 
     await connection.connect(params);

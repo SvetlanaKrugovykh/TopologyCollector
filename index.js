@@ -102,7 +102,7 @@ class NetworkDeviceCollector {
       port: 23,
       shellPrompt: /[$%#>]/,
       timeout: parseInt(process.env.TELNET_TIMEOUT) || 30000,
-      loginPrompt: /login[: ]*$/i,
+      loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username || 'admin',
       password: device.password || this.globalPassword,
