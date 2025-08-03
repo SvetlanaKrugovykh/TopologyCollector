@@ -88,56 +88,92 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  try {
-    console.log(chalk.yellow(`\nExecuting command: ${command}`));
+  console.log(chalk.yellow(`\nExecuting command with shell(): ${command}`));
+  
+  return new Promise((resolve, reject) => {
+    let fullResult = '';
+    let commandSent = false;
+    let isComplete = false;
     
-    // Special debug for show fdb
-    if (command === 'show fdb') {
-      console.log(chalk.blue('DEBUG: Starting show fdb with extended timeout...'));
-    }
-    
-    // Send command and get full response
-    const fullResponse = await connection.exec(command);
-    console.log(chalk.gray(`Full response length: ${fullResponse.length} chars`));
-    console.log(chalk.gray(`Full response: "${fullResponse}"`));
-    
-    // If response is very short, it might be just a prompt - this is suspicious
-    if (fullResponse.length < 50) {
-      console.log(chalk.yellow(`WARNING: Very short response (${fullResponse.length} chars) - might be incomplete`));
-    }
-    
-    // Clean the response - remove command echo and prompts
-    let cleanResult = fullResponse;
-    
-    // Remove the command itself from the beginning
-    const commandIndex = cleanResult.indexOf(command);
-    if (commandIndex !== -1) {
-      cleanResult = cleanResult.substring(commandIndex + command.length);
-    }
-    
-    // Remove trailing prompt (DGS-3420-26SC:admin# or similar)
-    cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '');
-    cleanResult = cleanResult.replace(/[#$>]\s*$/, '');
-    
-    // Remove leading/trailing whitespace and control characters
-    cleanResult = cleanResult.trim();
-    
-    console.log(chalk.green(`✓ Command executed successfully`));
-    console.log(chalk.gray(`Clean result length: ${cleanResult.length} chars`));
-    console.log(chalk.gray(`Clean result preview: "${cleanResult.substring(0, 200)}"`));
-    
-    // Handle pagination if needed
-    if (needsMoreInput(cleanResult, device)) {
-      console.log(chalk.cyan('Pagination detected, handling...'));
-      const additionalOutput = await handleMoreInput(connection, device);
-      return cleanResult + additionalOutput;
-    }
-    
-    return cleanResult;
-  } catch (error) {
-    console.log(chalk.red(`Command failed: ${error.message}`));
-    throw error;
-  }
+    connection.shell((error, stream) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      
+      console.log(chalk.gray('Started shell session'));
+      
+      stream.on('data', (data) => {
+        const output = data.toString();
+        fullResult += output;
+        
+        console.log(chalk.blue(`Received: "${output}"`));
+        
+        // Wait for prompt, then send command
+        if (!commandSent && output.match(/[$%#>]\s*$/)) {
+          console.log(chalk.gray(`Sending command: ${command}`));
+          stream.write(command + '\r\n');
+          commandSent = true;
+          return;
+        }
+        
+        // After command is sent, look for pagination or completion
+        if (commandSent) {
+          // Check for D-Link pagination patterns
+          if (needsMoreInput(output, device)) {
+            console.log(chalk.cyan('Pagination detected - sending "a"...'));
+            stream.write('a');
+          }
+          // Check if command is complete (ends with prompt again)
+          else if (output.match(/[$%#>]\s*$/)) {
+            console.log(chalk.green('Command completed - prompt detected'));
+            isComplete = true;
+            stream.end();
+          }
+        }
+      });
+      
+      stream.on('close', () => {
+        console.log(chalk.gray('Shell session closed'));
+        
+        // Clean the result - remove prompts and command echo
+        let cleanResult = fullResult;
+        
+        // Remove everything before the command
+        const commandIndex = cleanResult.indexOf(command);
+        if (commandIndex !== -1) {
+          cleanResult = cleanResult.substring(commandIndex + command.length);
+        }
+        
+        // Remove trailing prompt
+        cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '');
+        cleanResult = cleanResult.replace(/[#$>]\s*$/, '');
+        cleanResult = cleanResult.trim();
+        
+        console.log(chalk.green(`✓ Command result length: ${cleanResult.length} chars`));
+        console.log(chalk.gray(`Result preview: "${cleanResult.substring(0, 200)}"`));
+        
+        if (cleanResult.length > 0) {
+          resolve(cleanResult);
+        } else {
+          reject(new Error('No command output received'));
+        }
+      });
+      
+      stream.on('error', (err) => {
+        console.log(chalk.red(`Shell error: ${err.message}`));
+        reject(err);
+      });
+      
+      // Set timeout
+      setTimeout(() => {
+        if (!isComplete) {
+          console.log(chalk.yellow('Command timeout - forcing completion'));
+          stream.end();
+        }
+      }, 30000);
+    });
+  });
 }
 
 async function connectAndExecuteCommand(device, password, command, commandType) {
