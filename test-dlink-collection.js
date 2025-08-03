@@ -88,75 +88,26 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // For D-Link devices, prefer shell() method over exec()
-  console.log(chalk.yellow(`\nExecuting command with shell(): ${command}`));
-  
-  return new Promise((resolve, reject) => {
-    let fullResult = '';
-    let isComplete = false;
+  // Try exec method first - this was working in the successful version
+  try {
+    console.log(chalk.yellow(`\nExecuting command with exec(): ${command}`));
+    const result = await connection.exec(command);
+    console.log(chalk.green(`✓ Command executed successfully with exec()`));
+    console.log(chalk.gray(`Result length: ${result.length} chars`));
+    console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
     
-    // Use shell() method for D-Link compatibility
-    connection.shell((error, stream) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      
-      console.log(chalk.gray('Started shell session for command execution'));
-      
-      // Set up data handler
-      stream.on('data', (data) => {
-        const output = data.toString();
-        fullResult += output;
-        
-        console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
-        
-        // Check if we need to handle pagination
-        if (needsMoreInput(output, device)) {
-          console.log(chalk.cyan('Pagination detected - sending "a" for All...'));
-          stream.write(device.paginationInput || 'a');
-        }
-        // Check if command is complete (ends with prompt)
-        else if (output.match(/[$%#>]\s*$/)) {
-          console.log(chalk.green('Command completed - prompt detected'));
-          isComplete = true;
-          stream.end();
-        }
-      });
-      
-      stream.on('close', () => {
-        console.log(chalk.gray('Shell session closed'));
-        if (fullResult.length > 0) {
-          console.log(chalk.green(`✓ Command completed, result length: ${fullResult.length}`));
-          resolve(fullResult);
-        } else {
-          reject(new Error('Command completed but no result received'));
-        }
-      });
-      
-      stream.on('error', (err) => {
-        console.log(chalk.red(`Shell error: ${err.message}`));
-        reject(err);
-      });
-      
-      // Send the command
-      console.log(chalk.gray(`Sending command: "${command}"`));
-      stream.write(command + '\r\n');
-      
-      // Set timeout for safety
-      setTimeout(() => {
-        if (!isComplete) {
-          console.log(chalk.yellow('Command timeout - forcing completion'));
-          stream.end();
-          if (fullResult.length > 0) {
-            resolve(fullResult);
-          } else {
-            reject(new Error('Command timeout with no result'));
-          }
-        }
-      }, 60000); // 1 minute timeout
-    });
-  });
+    // Handle pagination if needed
+    if (needsMoreInput(result, device)) {
+      console.log(chalk.cyan('Pagination detected, handling...'));
+      const additionalOutput = await handleMoreInput(connection, device);
+      return result + additionalOutput;
+    }
+    
+    return result;
+  } catch (error) {
+    console.log(chalk.red(`exec() failed: ${error.message}`));
+    throw error;
+  }
 }
 
 async function connectAndExecuteCommand(device, password, command, commandType) {
@@ -175,14 +126,14 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       username: device.username,
       password: password,
       execTimeout: 5000,
-      debug: commandType === 'CONFIG' ? false : true
+      debug: false
     };
 
     await connection.connect(params);
     console.log(chalk.green(`✓ Connected to ${device.ip}`));
 
-    // Longer delay to ensure connection is fully stable for D-Link
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Small delay to ensure connection is stable
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Enter privileged mode if required
     if (device.requiresEnable && device.enableCommand) {
