@@ -12,6 +12,7 @@ function needsMoreInput(output, device) {
   // Use device-specific pagination prompts if available
   const prompts = device.paginationPrompts || [
     /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
+    /q Quit SPACE n Next Page ENTER Next Entry a All/i,
     /--More--/i,
     /Press any key to continue/i,
     /Press SPACE to continue/i,
@@ -31,7 +32,7 @@ function needsMoreInput(output, device) {
   const hasMore = patterns.some(pattern => pattern.test(output));
   
   if (hasMore) {
-    console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern`));
+    console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern in: "${output.slice(-100)}"`));
   }
   
   return hasMore;
@@ -212,7 +213,10 @@ async function testDLinkDataCollection() {
       password: null,
       enableCommand: "enable", // D-Link может требовать enable
       requiresEnable: true,
-      paginationPrompts: ["CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"],
+      paginationPrompts: [
+        "q Quit SPACE n Next Page ENTER Next Entry a All",
+        "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
+      ],
       paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
         config: ["show config effective"],
