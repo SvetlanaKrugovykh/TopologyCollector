@@ -35,21 +35,27 @@ function needsMoreInput(output) {
 }async function handleMoreInput(connection, device) {
   let additionalOutput = '';
   let attempts = 0;
-  const maxAttempts = 50;
+  const maxAttempts = 200; // Увеличиваем до 200 попыток для больших конфигураций
+
+  console.log(chalk.cyan(`  Starting pagination handling...`));
 
   while (attempts < maxAttempts) {
     try {
-      // Send space or enter to continue
+      // Send space to continue
+      console.log(chalk.gray(`    Sending SPACE to continue... (${attempts + 1}/${maxAttempts})`));
       const moreResult = await connection.exec(' ');
       additionalOutput += moreResult;
+      
+      // Show last part of current result
+      console.log(chalk.blue(`    Last 100 chars: "${moreResult.slice(-100)}"`));
 
       // Check if we need to continue
       if (!needsMoreInput(moreResult)) {
+        console.log(chalk.green(`  ✓ Pagination completed after ${attempts + 1} attempts`));
         break;
       }
 
       attempts++;
-      console.log(chalk.gray(`  Continuing output... (${attempts}/${maxAttempts})`));
 
     } catch (error) {
       console.log(chalk.red(`  Error handling more input: ${error.message}`));
@@ -58,7 +64,7 @@ function needsMoreInput(output) {
   }
 
   if (attempts >= maxAttempts) {
-    console.log(chalk.yellow(`  Maximum attempts reached for pagination`));
+    console.log(chalk.yellow(`  Maximum attempts (${maxAttempts}) reached for pagination`));
   }
 
   return additionalOutput;
@@ -125,12 +131,12 @@ async function testDataCollection() {
       host: device.ip,
       port: 23,
       shellPrompt: /[$%#>]/,
-      timeout: 15000,
+      timeout: 30000,
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: answers.password,
-      execTimeout: 10000,
+      execTimeout: 60000,
       debug: false
     };
 
