@@ -116,7 +116,7 @@ async function executeCommand(connection, command, device) {
           stream.write(device.paginationInput || 'a');
         }
         // Check if command is complete (ends with prompt)
-        else if (output.match(/[$%#>]\s*$/)) {
+        else if (output.match(/[#>$%]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
           
@@ -182,12 +182,12 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       host: device.ip,
       port: 23,
       shellPrompt: /[#>$%]\s*$/,
-      timeout: 30000,
+      timeout: 15000,
       loginPrompt: /(username|login|user name)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: password,
-      execTimeout: 15000,
+      execTimeout: 5000,
       debug: true
     };
 
@@ -230,7 +230,7 @@ async function testDLinkDataCollection() {
       username: "admin",
       password: null,
       enableCommand: "enable", // D-Link может требовать enable
-      requiresEnable: true,
+      requiresEnable: false, // Отключим пока для отладки
       paginationPrompts: [
         "q Quit SPACE n Next Page ENTER Next Entry a All",
         "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
