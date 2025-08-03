@@ -10,6 +10,7 @@
     "collect-macs": "node index.js --macs",
     "collect-all": "node index.js --all",
     "test-connection": "node test-connection.js",
+    "test-collection": "node test-collection.js",
     "manage-devices": "node manage-devices.js"
   },
   "keywords": [
