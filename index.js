@@ -234,6 +234,11 @@ class NetworkDeviceCollector {
   async executeCommandWithShell(connection, command, device) {
     logger.debug(`Executing command with shell() on ${device.ip}: ${command}`)
     
+    // Use special D-Link logic if it's a D-Link device
+    if (device.brand?.toLowerCase() === 'd-link') {
+      return this.executeCommandForDLink(connection, command, device)
+    }
+    
     const settings = this.getDeviceSettings(device)
     
     return new Promise((resolve, reject) => {
@@ -318,6 +323,111 @@ class NetworkDeviceCollector {
             clearTimeout(commandTimeout)
           }
           
+          reject(err)
+        })
+      })
+    })
+  }
+
+  // Special method for D-Link devices with exact working logic from test
+  async executeCommandForDLink(connection, command, device) {
+    logger.debug(`Executing D-Link command with shell(): ${command}`)
+
+    return new Promise((resolve, reject) => {
+      let fullResult = ''
+      let isComplete = false
+      let commandTimeout
+
+      connection.shell((error, stream) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        logger.debug('Started D-Link shell session')
+
+        // Set a timeout to prevent hanging
+        commandTimeout = setTimeout(() => {
+          if (!isComplete) {
+            logger.warn('D-Link command timeout - forcing completion')
+            isComplete = true
+            stream.destroy()
+          }
+        }, 30000); // 30 second timeout
+
+        // Send command immediately without waiting for prompt
+        setTimeout(() => {
+          logger.debug(`Sending D-Link command immediately: ${command}`)
+          stream.write(command + '\r\n')
+        }, 500); // Small delay to establish session
+
+        stream.on('data', (data) => {
+          const output = data.toString()
+          fullResult += output
+
+          logger.debug(`D-Link received: "${output}"`)
+
+          // Check for D-Link pagination patterns
+          if (this.needsMoreInput(output, device)) {
+            logger.debug('D-Link pagination detected - sending "a"...')
+            stream.write('a')
+          }
+          // Check if command is complete (ends with prompt)
+          else if (output.match(/[$%#>]\s*$/) && fullResult.length > command.length + 10) {
+            if (!isComplete) {
+              logger.debug('D-Link command completed - prompt detected')
+              isComplete = true
+              // Force close the stream with a timeout
+              setTimeout(() => {
+                stream.destroy()
+              }, 100)
+            }
+          }
+        })
+
+        stream.on('close', () => {
+          logger.debug('D-Link shell session closed')
+
+          // Clear timeout
+          if (commandTimeout) {
+            clearTimeout(commandTimeout)
+          }
+
+          if (!isComplete) {
+            logger.warn('D-Link session closed without completion detection')
+          }
+
+          // Clean the result - remove prompts and command echo (D-Link specific)
+          let cleanResult = fullResult
+
+          // Remove everything before the command
+          const commandIndex = cleanResult.indexOf(command)
+          if (commandIndex !== -1) {
+            cleanResult = cleanResult.substring(commandIndex + command.length)
+          }
+
+          // Remove trailing D-Link prompts
+          cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '')
+          cleanResult = cleanResult.replace(/[#$>]\s*$/, '')
+          cleanResult = cleanResult.trim()
+
+          logger.debug(`D-Link cleaned result: ${cleanResult.length} chars`)
+
+          if (cleanResult.length > 0) {
+            resolve(cleanResult)
+          } else {
+            reject(new Error('No D-Link command output received'))
+          }
+        })
+
+        stream.on('error', (err) => {
+          logger.error(`D-Link shell error: ${err.message}`)
+
+          // Clear timeout
+          if (commandTimeout) {
+            clearTimeout(commandTimeout)
+          }
+
           reject(err)
         })
       })
