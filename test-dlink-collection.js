@@ -116,7 +116,7 @@ async function executeCommand(connection, command, device) {
           stream.write(device.paginationInput || 'a');
         }
         // Check if command is complete (ends with prompt)
-        else if (output.match(/[#>$%]\s*$/)) {
+        else if (output.match(/[$%#>]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
           
@@ -170,25 +170,18 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
   
   try {
     console.log(chalk.yellow(`\nConnecting to ${device.ip} for ${commandType} command...`));
-    console.log(chalk.gray(`Connection params: ${JSON.stringify({
-      host: device.ip,
-      port: 23,
-      username: device.username,
-      timeout: 30000,
-      execTimeout: 15000
-    }, null, 2)}`));
     
     const params = {
       host: device.ip,
       port: 23,
-      shellPrompt: /[#>$%]\s*$/,
-      timeout: 15000,
-      loginPrompt: /(username|login|user name)[: ]*$/i,
+      shellPrompt: /[$%#>]/,
+      timeout: 30000,
+      loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: password,
-      execTimeout: 5000,
-      debug: true
+      execTimeout: 15000,
+      debug: false
     };
 
     await connection.connect(params);
@@ -274,14 +267,14 @@ async function testDLinkDataCollection() {
         const testParams = {
           host: device.ip,
           port: 23,
-          shellPrompt: /[#>$%]\s*$/,
+          shellPrompt: /[$%#>]/,
           timeout: 15000,
-          loginPrompt: /(username|login|user name)[: ]*$/i,
+          loginPrompt: /(username|login)[: ]*$/i,
           passwordPrompt: /password[: ]*$/i,
           username: device.username,
           password: password,
           execTimeout: 5000,
-          debug: true
+          debug: false
         };
         
         await testConnection.connect(testParams);
