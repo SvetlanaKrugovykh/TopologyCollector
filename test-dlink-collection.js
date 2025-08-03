@@ -11,9 +11,10 @@ const inquirer = require('inquirer');
 function needsMoreInput(output, device) {
   // D-Link specific patterns - look for key words
   const dlinkPatterns = [
-    /Quit.*SPACE.*Next.*Page/i,
-    /SPACE.*n.*Next.*Page/i,
-    /ENTER.*Next.*Entry.*a.*All/i,
+    /m Quit SPACE n Next Page/i,
+    /Quit SPACE n Next Page/i,
+    /SPACE n Next Page/i,
+    /Next Page ENTER Next Entry a All/i,
     /a All/i
   ];
   
