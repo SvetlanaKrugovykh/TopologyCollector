@@ -89,23 +89,10 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // Try exec method first for D-Link
-  try {
-    console.log(chalk.yellow(`\nTrying command with exec(): ${command}`));
-    const result = await connection.exec(command);
-    console.log(chalk.green(`✓ Command executed successfully with exec()`));
-    console.log(chalk.gray(`Result length: ${result.length} chars`));
-    console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
-    return result;
-  } catch (execError) {
-    console.log(chalk.red(`exec() failed: ${execError.message}`));
-    console.log(chalk.yellow(`Falling back to shell() method...`));
-  }
-
-  // Fallback to shell method
+  // Skip exec method for D-Link, use only shell method
+  console.log(chalk.yellow(`Using shell() method for D-Link: ${command}`));
+  
   return new Promise((resolve, reject) => {
-    console.log(chalk.yellow(`\nTrying command with shell(): ${command}`));
-    
     let fullResult = '';
     let isComplete = false;
     
