@@ -88,8 +88,22 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
+  // Try exec method first for D-Link
+  try {
+    console.log(chalk.yellow(`\nTrying command with exec(): ${command}`));
+    const result = await connection.exec(command);
+    console.log(chalk.green(`✓ Command executed successfully with exec()`));
+    console.log(chalk.gray(`Result length: ${result.length} chars`));
+    console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
+    return result;
+  } catch (execError) {
+    console.log(chalk.red(`exec() failed: ${execError.message}`));
+    console.log(chalk.yellow(`Falling back to shell() method...`));
+  }
+
+  // Fallback to shell method
   return new Promise((resolve, reject) => {
-    console.log(chalk.yellow(`\nTrying command: ${command}`));
+    console.log(chalk.yellow(`\nTrying command with shell(): ${command}`));
     
     let fullResult = '';
     let isComplete = false;
@@ -146,7 +160,9 @@ async function executeCommand(connection, command, device) {
       });
       
       // Send the command
-      console.log(chalk.gray(`Sending command: ${command}`));
+      console.log(chalk.gray(`Sending command: "${command}"`));
+      console.log(chalk.gray(`Command length: ${command.length} chars`));
+      console.log(chalk.gray(`Command bytes: ${JSON.stringify(command.split(''))}`));
       stream.write(command + '\r\n');
       
       // Set timeout for safety
@@ -181,7 +197,7 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       username: device.username,
       password: password,
       execTimeout: 5000,
-      debug: false
+      debug: true
     };
 
     await connection.connect(params);
