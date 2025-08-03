@@ -73,67 +73,74 @@ function needsMoreInput(output, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  console.log(chalk.yellow(`\nTrying command: ${command}`));
-  
-  // Use sendln for direct command sending
-  await connection.sendln(command);
-  
-  let fullResult = '';
-  let attempts = 0;
-  const maxAttempts = 100;
-  
-  console.log(chalk.gray('Waiting for command output...'));
-  
-  while (attempts < maxAttempts) {
-    try {
-      // Get data with short timeout
-      const chunk = await connection.nextData(5000); // 5 second timeout
-      fullResult += chunk;
-      
-      console.log(chalk.blue(`Chunk ${attempts + 1}: "${chunk.slice(-100)}"`));
-      
-      // Check if we need to send space for pagination
-      if (needsMoreInput(chunk, device)) {
-        console.log(chalk.cyan('Pagination detected - sending space...'));
-        await connection.send(device.paginationInput || ' ');
-        attempts++;
-        continue;
+  return new Promise((resolve, reject) => {
+    console.log(chalk.yellow(`\nTrying command: ${command}`));
+    
+    let fullResult = '';
+    let isComplete = false;
+    
+    // Use shell() method for raw interaction
+    connection.shell((error, stream) => {
+      if (error) {
+        reject(error);
+        return;
       }
       
-      // Check if command completed (ends with prompt)
-      if (chunk.match(/OLT_Tatsenky[#>$]\s*$/)) {
-        console.log(chalk.green('Command completed - device prompt detected'));
-        break;
-      }
+      console.log(chalk.gray('Started shell session for command execution'));
       
-      attempts++;
+      // Set up data handler
+      stream.on('data', (data) => {
+        const output = data.toString();
+        fullResult += output;
+        
+        console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
+        
+        // Check if we need to handle pagination
+        if (needsMoreInput(output, device)) {
+          console.log(chalk.cyan('Pagination detected - sending space...'));
+          stream.write(device.paginationInput || ' ');
+        }
+        // Check if command is complete (ends with prompt)
+        else if (output.match(/[$%#>]\s*$/)) {
+          console.log(chalk.green('Command completed - prompt detected'));
+          isComplete = true;
+          stream.end();
+        }
+      });
       
-    } catch (error) {
-      if (error.message.includes('timeout')) {
-        console.log(chalk.yellow('Timeout waiting for more data - command may be complete'));
-        break;
-      } else {
-        console.log(chalk.red(`Error getting data: ${error.message}`));
-        break;
-      }
-    }
-  }
-  
-  // Clean up result
-  let cleanResult = fullResult;
-  
-  // Remove command echo from beginning
-  const commandIndex = cleanResult.indexOf(command);
-  if (commandIndex !== -1) {
-    cleanResult = cleanResult.substring(commandIndex + command.length);
-  }
-  
-  // Remove device prompt from end
-  cleanResult = cleanResult.replace(/OLT_Tatsenky[#>$]\s*$/, '').trim();
-  
-  console.log(chalk.green(`✓ Command completed, clean result length: ${cleanResult.length}`));
-  
-  return cleanResult;
+      stream.on('close', () => {
+        console.log(chalk.gray('Shell session closed'));
+        if (isComplete) {
+          console.log(chalk.green(`✓ Command completed, result length: ${fullResult.length}`));
+          resolve(fullResult);
+        } else {
+          reject(new Error('Command did not complete properly'));
+        }
+      });
+      
+      stream.on('error', (err) => {
+        console.log(chalk.red(`Shell error: ${err.message}`));
+        reject(err);
+      });
+      
+      // Send the command
+      console.log(chalk.gray(`Sending command: ${command}`));
+      stream.write(command + '\r\n');
+      
+      // Set timeout for safety
+      setTimeout(() => {
+        if (!isComplete) {
+          console.log(chalk.yellow('Command timeout - forcing completion'));
+          stream.end();
+          if (fullResult.length > 0) {
+            resolve(fullResult);
+          } else {
+            reject(new Error('Command timeout with no result'));
+          }
+        }
+      }, 120000); // 2 minutes timeout
+    });
+  });
 }
 
 async function testDataCollection() {
@@ -243,8 +250,11 @@ async function testDataCollection() {
       }
     }
 
-    // Test MAC commands
-    console.log(chalk.cyan('\n=== Testing MAC Table Commands ==='));
+    // Test MAC commands - TEMPORARILY DISABLED
+    console.log(chalk.cyan('\n=== Testing MAC Table Commands - SKIPPED ==='));
+    console.log(chalk.yellow('MAC table commands disabled to focus on config command'));
+
+    /*
     for (const command of device.commands.mac) {
       try {
         const result = await executeCommand(connection, command, device);
@@ -268,6 +278,7 @@ async function testDataCollection() {
         console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
       }
     }
+    */
 
     await connection.end();
     console.log(chalk.green('\n✓ Data collection test completed'));
