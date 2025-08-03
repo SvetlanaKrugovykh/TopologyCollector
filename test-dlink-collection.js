@@ -175,12 +175,12 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       host: device.ip,
       port: 23,
       shellPrompt: /[$%#>]/,
-      timeout: 30000,
+      timeout: 15000,
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: password,
-      execTimeout: 15000,
+      execTimeout: 5000,
       debug: false
     };
 
@@ -230,8 +230,8 @@ async function testDLinkDataCollection() {
       ],
       paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
-        config: ["show config effective"],
-        mac: ["show fdb"]
+        config: ["show config", "show running-config"],
+        mac: ["show fdb", "show mac address-table"]
       },
       description: "D-Link_Switch_212"
     };
