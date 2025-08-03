@@ -104,7 +104,14 @@ async function executeCommand(connection, command, device) {
         else if (output.match(/[$%#>]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
-          stream.end();
+          
+          // Immediately resolve with result before ending stream
+          resolve(fullResult);
+          
+          // Then end the stream
+          setTimeout(() => {
+            stream.end();
+          }, 100);
         }
       });
       
@@ -239,6 +246,15 @@ async function testDataCollection() {
           await fs.mkdir(configDir, { recursive: true });
           const filename = `${device.ip.replace(/\./g, '_')}.cfg`;
           const filepath = path.join(configDir, filename);
+          
+          // Check if file exists and log accordingly
+          try {
+            await fs.access(filepath);
+            console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
+          } catch {
+            console.log(chalk.gray(`Creating new file: ${filepath}`));
+          }
+          
           await fs.writeFile(filepath, result, 'utf8');
           console.log(chalk.green(`Configuration saved: ${filepath}`));
           break; // Use first working command
@@ -268,6 +284,15 @@ async function testDataCollection() {
           await fs.mkdir(macDir, { recursive: true });
           const filename = `${device.ip.replace(/\./g, '_')}.mac`;
           const filepath = path.join(macDir, filename);
+          
+          // Check if file exists and log accordingly
+          try {
+            await fs.access(filepath);
+            console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
+          } catch {
+            console.log(chalk.gray(`Creating new file: ${filepath}`));
+          }
+          
           await fs.writeFile(filepath, result, 'utf8');
           console.log(chalk.green(`MAC table saved: ${filepath}`));
           break; // Use first working command
