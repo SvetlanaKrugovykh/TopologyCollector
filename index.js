@@ -86,6 +86,7 @@ class NetworkDeviceCollector {
       const data = await fs.readFile(this.brandSettingsFile, 'utf8')
       this.brandSettings = JSON.parse(data)
       logger.info(`Loaded brand settings for: ${Object.keys(this.brandSettings).join(', ')}`)
+      logger.debug(`Full brand settings:`, this.brandSettings)
     } catch (error) {
       logger.warn(`Error loading brand settings file: ${error.message}`)
       logger.info('Using default brand settings')
@@ -130,7 +131,7 @@ class NetworkDeviceCollector {
     const brand = device.brand
     if (brand && this.brandSettings[brand]) {
       logger.debug(`Using brand settings for ${device.ip} (${brand})`)
-      logger.debug(`Brand settings for ${brand}:`, JSON.stringify(this.brandSettings[brand]))
+      logger.debug(`Brand settings for ${brand}:`, this.brandSettings[brand])
       return this.brandSettings[brand]
     }
     
