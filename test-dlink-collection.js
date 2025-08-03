@@ -223,7 +223,7 @@ async function testDLinkDataCollection() {
       username: "admin",
       password: null,
       enableCommand: "enable", // D-Link может требовать enable
-      requiresEnable: false, // Отключим пока для отладки
+      requiresEnable: false, // ОТКЛЮЧЕНО для простого подключения
       paginationPrompts: [
         "q Quit SPACE n Next Page ENTER Next Entry a All",
         "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
