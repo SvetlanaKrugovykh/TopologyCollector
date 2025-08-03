@@ -5,7 +5,13 @@ const path = require('path');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 
-const devicesFile = './data/devices.json';
+// Load environment variables
+require('dotenv').config();
+
+// Build full path to devices file
+const dataDir = process.env.DATA_DIR || './data';
+const devicesFileName = process.env.DEVICES_FILE || 'devices.json';
+const devicesFile = path.join(dataDir, devicesFileName);
 
 // Predefined commands for different vendors
 const vendorCommands = {

@@ -37,7 +37,11 @@ class NetworkDeviceCollector {
     this.configsDir = process.env.CONFIGS_DIR || './configs';
     this.macTablesDir = process.env.MAC_TABLES_DIR || './mac_tables';
     this.logsDir = process.env.LOGS_DIR || './logs';
-    this.devicesFile = process.env.DEVICES_FILE || './data/devices.json';
+    
+    // Build full path to devices file
+    const dataDir = process.env.DATA_DIR || './data';
+    const devicesFileName = process.env.DEVICES_FILE || 'devices.json';
+    this.devicesFile = path.join(dataDir, devicesFileName);
   }
 
   async init() {
