@@ -197,7 +197,7 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       username: device.username,
       password: password,
       execTimeout: 5000,
-      debug: true
+      debug: false
     };
 
     await connection.connect(params);
@@ -296,6 +296,11 @@ async function testDLinkDataCollection() {
         await testConnection.connect(testParams);
         await testConnection.end();
         console.log(chalk.green(`✓ Password validated successfully`));
+        
+        // Wait a bit before proceeding with data collection
+        console.log(chalk.gray('Waiting 2 seconds before starting data collection...'));
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         break; // Password is correct, exit loop
         
       } catch (error) {
@@ -345,6 +350,10 @@ async function testDLinkDataCollection() {
         console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
       }
     }
+
+    // Wait between config and FDB collection
+    console.log(chalk.gray('Waiting 3 seconds between commands...'));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Test MAC commands with separate connection
     console.log(chalk.cyan('\n=== Collecting FDB Table ==='));
