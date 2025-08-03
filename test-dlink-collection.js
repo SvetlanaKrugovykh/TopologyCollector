@@ -9,6 +9,14 @@ const inquirer = require('inquirer');
 
 // Functions for handling pagination
 function needsMoreInput(output, device) {
+  // D-Link specific patterns - look for key words
+  const dlinkPatterns = [
+    /Quit.*SPACE.*Next.*Page/i,
+    /SPACE.*n.*Next.*Page/i,
+    /ENTER.*Next.*Entry.*a.*All/i,
+    /a All/i
+  ];
+  
   // Use device-specific pagination prompts if available
   const prompts = device.paginationPrompts || [
     /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
@@ -21,8 +29,11 @@ function needsMoreInput(output, device) {
     /Type <CR> to continue/i
   ];
   
+  // Combine D-Link patterns with generic ones
+  const allPatterns = [...dlinkPatterns, ...prompts];
+  
   // Convert string prompts to regex
-  const patterns = prompts.map(prompt => {
+  const patterns = allPatterns.map(prompt => {
     if (typeof prompt === 'string') {
       return new RegExp(prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     }
@@ -32,7 +43,7 @@ function needsMoreInput(output, device) {
   const hasMore = patterns.some(pattern => pattern.test(output));
   
   if (hasMore) {
-    console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern in: "${output.slice(-100)}"`));
+    console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern in: "${output.slice(-150)}"`));
   }
   
   return hasMore;
