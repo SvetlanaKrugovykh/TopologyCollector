@@ -101,25 +101,32 @@ class NetworkDeviceCollector {
 
   async connectToDevice(device) {
     const connection = new Telnet();
+    
+    // Get connection settings from device config or defaults
+    const settings = device.connectionSettings || {};
+    const timeout = settings.timeout || parseInt(process.env.TELNET_TIMEOUT) || 30000;
+    const execTimeout = settings.execTimeout || parseInt(process.env.COMMAND_TIMEOUT) || 10000;
+    
     const params = {
       host: device.ip,
       port: 23,
       shellPrompt: /[$%#>]/,
-      timeout: parseInt(process.env.TELNET_TIMEOUT) || 30000,
+      timeout: timeout,
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
-      username: device.username || 'admin',
-      password: device.password || this.globalPassword,
-      execTimeout: parseInt(process.env.COMMAND_TIMEOUT) || 10000
+      username: device.credentials?.username || device.username || 'admin',
+      password: device.credentials?.password || device.password || this.globalPassword,
+      execTimeout: execTimeout,
+      debug: false
     };
 
     try {
-      logger.info(`Connecting to device ${device.ip} (${device.description})`);
+      logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`);
       await connection.connect(params);
       logger.info(`Successfully connected to ${device.ip}`);
       
       // Enter privileged mode if required
-      if (device.requiresEnable && device.enableCommand) {
+      if (settings.requiresEnable && device.enableCommand) {
         try {
           logger.info(`Entering privileged mode on ${device.ip} with command: ${device.enableCommand}`);
           await connection.exec(device.enableCommand);
@@ -137,16 +144,26 @@ class NetworkDeviceCollector {
   }
 
   async executeCommand(connection, command, device) {
+    const connectionMethod = device.connectionSettings?.connectionMethod || 'exec';
+    
+    if (connectionMethod === 'shell') {
+      return await this.executeCommandWithShell(connection, command, device);
+    } else {
+      return await this.executeCommandWithExec(connection, command, device);
+    }
+  }
+
+  async executeCommandWithExec(connection, command, device) {
     try {
-      logger.debug(`Executing command on ${device.ip}: ${command}`);
+      logger.debug(`Executing command with exec() on ${device.ip}: ${command}`);
       
       // Send command
       let result = await connection.exec(command);
       
       // Check if additional interaction is required
-      if (this.needsMoreInput(result)) {
+      if (this.needsMoreInput(result, device)) {
         logger.info(`Device ${device.ip} requires additional input`);
-        result += await this.handleMoreInput(connection, device);
+        result += await this.handleMoreInputWithExec(connection, device);
       }
       
       return result;
@@ -156,31 +173,138 @@ class NetworkDeviceCollector {
     }
   }
 
-  needsMoreInput(output) {
-    const morePatterns = [
+  async executeCommandWithShell(connection, command, device) {
+    logger.debug(`Executing command with shell() on ${device.ip}: ${command}`);
+    
+    return new Promise((resolve, reject) => {
+      let fullResult = '';
+      let isComplete = false;
+      let commandTimeout;
+      
+      connection.shell((error, stream) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        
+        logger.debug(`Started shell session for ${device.ip}`);
+        
+        // Set timeout to prevent hanging
+        const timeoutMs = device.connectionSettings?.shellTimeout || 30000;
+        commandTimeout = setTimeout(() => {
+          if (!isComplete) {
+            logger.warn(`Command timeout for ${device.ip} - forcing completion`);
+            isComplete = true;
+            stream.destroy();
+          }
+        }, timeoutMs);
+        
+        // Send command immediately
+        setTimeout(() => {
+          logger.debug(`Sending command to ${device.ip}: ${command}`);
+          stream.write(command + '\r\n');
+        }, 500);
+        
+        stream.on('data', (data) => {
+          const output = data.toString();
+          fullResult += output;
+          
+          // Check for D-Link pagination patterns
+          if (this.needsMoreInput(output, device)) {
+            logger.debug(`Pagination detected for ${device.ip} - sending continuation`);
+            const paginationInput = device.connectionSettings?.paginationInput || 'a';
+            stream.write(paginationInput);
+          }
+          // Check if command is complete (ends with prompt)
+          else if (output.match(/[$%#>]\s*$/) && fullResult.length > command.length + 10) {
+            if (!isComplete) {
+              logger.debug(`Command completed for ${device.ip} - prompt detected`);
+              isComplete = true;
+              setTimeout(() => {
+                stream.destroy();
+              }, 100);
+            }
+          }
+        });
+        
+        stream.on('close', () => {
+          logger.debug(`Shell session closed for ${device.ip}`);
+          
+          if (commandTimeout) {
+            clearTimeout(commandTimeout);
+          }
+          
+          // Clean the result
+          let cleanResult = this.cleanShellResult(fullResult, command, device);
+          
+          if (cleanResult.length > 0) {
+            resolve(cleanResult);
+          } else {
+            reject(new Error('No command output received'));
+          }
+        });
+        
+        stream.on('error', (err) => {
+          logger.error(`Shell error for ${device.ip}: ${err.message}`);
+          
+          if (commandTimeout) {
+            clearTimeout(commandTimeout);
+          }
+          
+          reject(err);
+        });
+      });
+    });
+  }
+
+  needsMoreInput(output, device) {
+    // D-Link specific patterns
+    const dlinkPatterns = [
+      /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
+      /Press any key to continue \(Q to quit\)/i,
+      /CTRL\+C ESC q Quit SPACE n Next Page/i
+    ];
+    
+    // Standard patterns for OLTs and other devices
+    const standardPatterns = [
       /--More--/i,
       /Press any key to continue/i,
       /Press SPACE to continue/i,
       /Press Enter to continue/i,
       /\[Press 'A' for All or ENTER to continue\]/i,
-      /Type <CR> to continue/i
+      /Type <CR> to continue/i,
+      /More\s*$/i
     ];
     
-    return morePatterns.some(pattern => pattern.test(output));
+    // Choose patterns based on device brand
+    const brand = device.brand?.toLowerCase();
+    let patterns;
+    
+    if (brand === 'd-link' || brand === 'dlink') {
+      patterns = dlinkPatterns;
+    } else {
+      patterns = standardPatterns;
+    }
+    
+    return patterns.some(pattern => pattern.test(output));
   }
 
-  async handleMoreInput(connection, device) {
+  async handleMoreInputWithExec(connection, device) {
     let additionalOutput = '';
     let attempts = 0;
-    const maxAttempts = 50; // Limit number of attempts
+    const maxAttempts = 50;
+    const inputChar = device.connectionSettings?.paginationInput || ' ';
+    
+    logger.debug(`Starting exec pagination for ${device.ip} with input: "${inputChar}"`);
     
     while (attempts < maxAttempts) {
       try {
-        // Send space to continue
-        const moreData = await connection.exec(' ');
+        // Send pagination input
+        const moreData = await connection.exec(inputChar);
         additionalOutput += moreData;
         
-        if (!this.needsMoreInput(moreData)) {
+        if (!this.needsMoreInput(moreData, device)) {
+          logger.debug(`Pagination completed for ${device.ip} after ${attempts + 1} attempts`);
           break;
         }
         
@@ -196,10 +320,31 @@ class NetworkDeviceCollector {
     }
     
     if (attempts >= maxAttempts) {
-      logger.warn(`Maximum attempts reached for ${device.ip}`);
+      logger.warn(`Maximum pagination attempts reached for ${device.ip}`);
     }
     
     return additionalOutput;
+  }
+
+  cleanShellResult(fullResult, command, device) {
+    let cleanResult = fullResult;
+    
+    // Remove everything before the command
+    const commandIndex = cleanResult.indexOf(command);
+    if (commandIndex !== -1) {
+      cleanResult = cleanResult.substring(commandIndex + command.length);
+    }
+    
+    // Remove trailing prompts based on device type
+    const brand = device.brand?.toLowerCase();
+    if (brand === 'd-link' || brand === 'dlink') {
+      cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '');
+    }
+    cleanResult = cleanResult.replace(/[#$>]\s*$/, '');
+    cleanResult = cleanResult.trim();
+    
+    logger.debug(`Cleaned result for ${device.ip}: ${cleanResult.length} chars`);
+    return cleanResult;
   }
 
   async collectConfigs() {
