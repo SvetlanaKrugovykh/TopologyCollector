@@ -16,7 +16,7 @@ function needsMoreInput(output, device) {
     /ENTER.*Next.*Entry.*a.*All/i,
     /a All/i
   ];
-  
+
   // Use device-specific pagination prompts if available
   const prompts = device.paginationPrompts || [
     /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
@@ -28,10 +28,10 @@ function needsMoreInput(output, device) {
     /\[Press 'A' for All or ENTER to continue\]/i,
     /Type <CR> to continue/i
   ];
-  
+
   // Combine D-Link patterns with generic ones
   const allPatterns = [...dlinkPatterns, ...prompts];
-  
+
   // Convert string prompts to regex
   const patterns = allPatterns.map(prompt => {
     if (typeof prompt === 'string') {
@@ -39,13 +39,13 @@ function needsMoreInput(output, device) {
     }
     return prompt;
   });
-  
+
   const hasMore = patterns.some(pattern => pattern.test(output));
-  
+
   if (hasMore) {
     console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern in: "${output.slice(-150)}"`));
   }
-  
+
   return hasMore;
 }
 
@@ -62,7 +62,7 @@ async function handleMoreInput(connection, device) {
       console.log(chalk.gray(`    Sending "${inputChar}" to continue... (${attempts + 1}/${maxAttempts})`));
       const moreResult = await connection.exec(inputChar);
       additionalOutput += moreResult;
-      
+
       // Show last part of current result
       console.log(chalk.blue(`    Last 100 chars: "${moreResult.slice(-100)}"`));
 
@@ -89,20 +89,20 @@ async function handleMoreInput(connection, device) {
 
 async function executeCommand(connection, command, device) {
   console.log(chalk.yellow(`\nExecuting command with shell(): ${command}`));
-  
+
   return new Promise((resolve, reject) => {
     let fullResult = '';
     let isComplete = false;
     let commandTimeout;
-    
+
     connection.shell((error, stream) => {
       if (error) {
         reject(error);
         return;
       }
-      
+
       console.log(chalk.gray('Started shell session'));
-      
+
       // Set a timeout to prevent hanging
       commandTimeout = setTimeout(() => {
         if (!isComplete) {
@@ -111,19 +111,19 @@ async function executeCommand(connection, command, device) {
           stream.destroy();
         }
       }, 30000); // 30 second timeout
-      
+
       // Send command immediately without waiting for prompt
       setTimeout(() => {
         console.log(chalk.gray(`Sending command immediately: ${command}`));
         stream.write(command + '\r\n');
       }, 500); // Small delay to establish session
-      
+
       stream.on('data', (data) => {
         const output = data.toString();
         fullResult += output;
-        
+
         console.log(chalk.blue(`Received: "${output}"`));
-        
+
         // Check for D-Link pagination patterns
         if (needsMoreInput(output, device)) {
           console.log(chalk.cyan('Pagination detected - sending "a"...'));
@@ -141,53 +141,53 @@ async function executeCommand(connection, command, device) {
           }
         }
       });
-      
+
       stream.on('close', () => {
         console.log(chalk.gray('Shell session closed'));
-        
+
         // Clear timeout
         if (commandTimeout) {
           clearTimeout(commandTimeout);
         }
-        
+
         if (!isComplete) {
           console.log(chalk.yellow('Session closed without completion detection'));
         }
-        
+
         // Clean the result - remove prompts and command echo
         let cleanResult = fullResult;
-        
+
         // Remove everything before the command
         const commandIndex = cleanResult.indexOf(command);
         if (commandIndex !== -1) {
           cleanResult = cleanResult.substring(commandIndex + command.length);
         }
-        
+
         // Remove trailing prompt
         cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '');
         cleanResult = cleanResult.replace(/[#$>]\s*$/, '');
         cleanResult = cleanResult.trim();
-        
+
         console.log(chalk.green(`✓ Command result length: ${cleanResult.length} chars`));
-        
+
         if (cleanResult.length > 0) {
           resolve(cleanResult);
         } else {
           reject(new Error('No command output received'));
         }
       });
-      
+
       stream.on('error', (err) => {
         console.log(chalk.red(`Shell error: ${err.message}`));
-        
+
         // Clear timeout
         if (commandTimeout) {
           clearTimeout(commandTimeout);
         }
-        
+
         reject(err);
       });
-      
+
       // Set timeout
       setTimeout(() => {
         if (!isComplete) {
@@ -201,10 +201,10 @@ async function executeCommand(connection, command, device) {
 
 async function connectAndExecuteCommand(device, password, command, commandType) {
   const connection = new Telnet();
-  
+
   try {
     console.log(chalk.yellow(`\nConnecting to ${device.ip} for ${commandType} command...`));
-    
+
     const params = {
       host: device.ip,
       port: 23,
@@ -234,12 +234,12 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
     // Execute the command
     console.log(chalk.gray(`Executing command: ${command}`));
     const result = await executeCommand(connection, command, device);
-    
+
     await connection.end();
     console.log(chalk.gray(`Connection closed for ${commandType} command`));
-    
+
     return result;
-    
+
   } catch (error) {
     console.log(chalk.red(`Error in ${commandType} command execution: ${error.message}`));
     try {
@@ -268,7 +268,7 @@ async function testDLinkDataCollection() {
       ],
       paginationInput: "a", // D-Link expects 'a' to show all
       commands: {
-        config: ["show switch"],
+        config: ["show config effective"],
         mac: ["show fdb"]
       },
       description: "D-Link_Switch_212"
@@ -283,23 +283,23 @@ async function testDLinkDataCollection() {
     // Get password with multiple attempts
     let password = null;
     const maxPasswordAttempts = 3;
-    
+
     for (let attempt = 1; attempt <= maxPasswordAttempts; attempt++) {
       try {
         const answers = await inquirer.prompt([
           {
             type: 'password',
             name: 'password',
-            message: attempt === 1 
-              ? 'Enter device password:' 
+            message: attempt === 1
+              ? 'Enter device password:'
               : `Enter device password (attempt ${attempt}/${maxPasswordAttempts}):`,
             mask: '*',
             maskSymbol: '*'
           }
         ]);
-        
+
         password = answers.password;
-        
+
         // Show password feedback
         if (password && password.length > 0) {
           console.log(chalk.green(`✓ Password entered (${password.length} characters)`));
@@ -307,12 +307,12 @@ async function testDLinkDataCollection() {
           console.log(chalk.red(`✗ No password entered`));
           continue; // Try again
         }
-        
+
         break; // Password entered, proceed
-        
+
       } catch (error) {
         console.log(chalk.red(`✗ Error getting password: ${error.message}`));
-        
+
         if (attempt === maxPasswordAttempts) {
           throw new Error(`Failed to get password after ${maxPasswordAttempts} attempts`);
         } else {
@@ -325,10 +325,10 @@ async function testDLinkDataCollection() {
 
     // Use ONE connection for ALL commands - like in working version
     const connection = new Telnet();
-    
+
     try {
       console.log(chalk.yellow(`\nConnecting to ${device.ip}...`));
-      
+
       const params = {
         host: device.ip,
         port: 23,
@@ -347,7 +347,7 @@ async function testDLinkDataCollection() {
 
       // Clear any initial output and wait for prompt
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Send empty command to clear buffer and get clean prompt
       try {
         await connection.exec('');
@@ -374,14 +374,14 @@ async function testDLinkDataCollection() {
             await fs.mkdir(configDir, { recursive: true });
             const filename = `${device.ip.replace(/\./g, '_')}.cfg`;
             const filepath = path.join(configDir, filename);
-            
+
             try {
               await fs.access(filepath);
               console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
             } catch {
               console.log(chalk.gray(`Creating new file: ${filepath}`));
             }
-            
+
             await fs.writeFile(filepath, result, 'utf8');
             console.log(chalk.green(`Configuration saved: ${filepath}`));
             break;
@@ -411,14 +411,14 @@ async function testDLinkDataCollection() {
             await fs.mkdir(macDir, { recursive: true });
             const filename = `${device.ip.replace(/\./g, '_')}.mac`;
             const filepath = path.join(macDir, filename);
-            
+
             try {
               await fs.access(filepath);
               console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
             } catch {
               console.log(chalk.gray(`Creating new file: ${filepath}`));
             }
-            
+
             await fs.writeFile(filepath, result, 'utf8');
             console.log(chalk.green(`FDB table saved: ${filepath}`));
             break;
