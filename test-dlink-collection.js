@@ -238,13 +238,13 @@ async function testDLinkDataCollection() {
       vendor: "D-Link",
       username: "admin",
       password: null,
-      enableCommand: "enable", // D-Link may require enable
-      requiresEnable: false, // DISABLED for simple connection
+      enableCommand: "enable", // D-Link может требовать enable
+      requiresEnable: false, // ОТКЛЮЧЕНО для простого подключения
       paginationPrompts: [
         "q Quit SPACE n Next Page ENTER Next Entry a All",
         "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
       ],
-      paginationInput: "a", // D-Link expects 'a' to show all
+      paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
         config: ["show ver"],
         mac: ["show fdb"]
