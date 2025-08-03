@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 require('dotenv').config();
-const TelnetClient = require('telnet-client');
+const { Telnet } = require('telnet-client');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 
@@ -36,7 +36,7 @@ async function testConnection() {
 
     console.log(chalk.yellow(`\nConnecting to ${answers.ip}...`));
 
-    const connection = new TelnetClient();
+    const connection = new Telnet();
     const params = {
       host: answers.ip,
       port: 23,

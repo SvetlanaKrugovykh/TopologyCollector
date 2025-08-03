@@ -3,7 +3,7 @@
 require('dotenv').config();
 const fs = require('fs').promises;
 const path = require('path');
-const TelnetClient = require('telnet-client');
+const { Telnet } = require('telnet-client');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 const winston = require('winston');
@@ -96,7 +96,7 @@ class NetworkDeviceCollector {
   }
 
   async connectToDevice(device) {
-    const connection = new TelnetClient();
+    const connection = new Telnet();
     const params = {
       host: device.ip,
       port: 23,
