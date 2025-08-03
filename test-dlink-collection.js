@@ -16,7 +16,7 @@ function needsMoreInput(output, device) {
     /ENTER.*Next.*Entry.*a.*All/i,
     /a All/i
   ];
-
+  
   // Use device-specific pagination prompts if available
   const prompts = device.paginationPrompts || [
     /CTRL\+C ESC q Quit SPACE n Next Page ENTER Next Entry a All/i,
@@ -28,10 +28,10 @@ function needsMoreInput(output, device) {
     /\[Press 'A' for All or ENTER to continue\]/i,
     /Type <CR> to continue/i
   ];
-
+  
   // Combine D-Link patterns with generic ones
   const allPatterns = [...dlinkPatterns, ...prompts];
-
+  
   // Convert string prompts to regex
   const patterns = allPatterns.map(prompt => {
     if (typeof prompt === 'string') {
@@ -39,13 +39,13 @@ function needsMoreInput(output, device) {
     }
     return prompt;
   });
-
+  
   const hasMore = patterns.some(pattern => pattern.test(output));
-
+  
   if (hasMore) {
     console.log(chalk.blue(`DEBUG: Pagination detected with D-Link pattern in: "${output.slice(-150)}"`));
   }
-
+  
   return hasMore;
 }
 
@@ -62,7 +62,7 @@ async function handleMoreInput(connection, device) {
       console.log(chalk.gray(`    Sending "${inputChar}" to continue... (${attempts + 1}/${maxAttempts})`));
       const moreResult = await connection.exec(inputChar);
       additionalOutput += moreResult;
-
+      
       // Show last part of current result
       console.log(chalk.blue(`    Last 100 chars: "${moreResult.slice(-100)}"`));
 
@@ -104,26 +104,26 @@ async function executeCommand(connection, command, device) {
   // Fallback to shell method
   return new Promise((resolve, reject) => {
     console.log(chalk.yellow(`\nTrying command with shell(): ${command}`));
-
+    
     let fullResult = '';
     let isComplete = false;
-
+    
     // Use shell() method for raw interaction
     connection.shell((error, stream) => {
       if (error) {
         reject(error);
         return;
       }
-
+      
       console.log(chalk.gray('Started shell session for command execution'));
-
+      
       // Set up data handler
       stream.on('data', (data) => {
         const output = data.toString();
         fullResult += output;
-
+        
         console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
-
+        
         // Check if we need to handle pagination
         if (needsMoreInput(output, device)) {
           console.log(chalk.cyan('Pagination detected - sending "a" for All...'));
@@ -133,17 +133,17 @@ async function executeCommand(connection, command, device) {
         else if (output.match(/[$%#>]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
-
+          
           // Immediately resolve with result before ending stream
           resolve(fullResult);
-
+          
           // Then end the stream
           setTimeout(() => {
             stream.end();
           }, 100);
         }
       });
-
+      
       stream.on('close', () => {
         console.log(chalk.gray('Shell session closed'));
         if (isComplete) {
@@ -153,18 +153,18 @@ async function executeCommand(connection, command, device) {
           reject(new Error('Command did not complete properly'));
         }
       });
-
+      
       stream.on('error', (err) => {
         console.log(chalk.red(`Shell error: ${err.message}`));
         reject(err);
       });
-
+      
       // Send the command
       console.log(chalk.gray(`Sending command: "${command}"`));
       console.log(chalk.gray(`Command length: ${command.length} chars`));
       console.log(chalk.gray(`Command bytes: ${JSON.stringify(command.split(''))}`));
       stream.write(command + '\r\n');
-
+      
       // Set timeout for safety
       setTimeout(() => {
         if (!isComplete) {
@@ -183,10 +183,10 @@ async function executeCommand(connection, command, device) {
 
 async function connectAndExecuteCommand(device, password, command, commandType) {
   const connection = new Telnet();
-
+  
   try {
     console.log(chalk.yellow(`\nConnecting to ${device.ip} for ${commandType} command...`));
-
+    
     const params = {
       host: device.ip,
       port: 23,
@@ -212,12 +212,12 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
 
     // Execute the command
     const result = await executeCommand(connection, command, device);
-
+    
     await connection.end();
     console.log(chalk.gray(`Connection closed for ${commandType} command`));
-
+    
     return result;
-
+    
   } catch (error) {
     console.log(chalk.red(`Error in ${commandType} command execution: ${error.message}`));
     try {
@@ -238,13 +238,13 @@ async function testDLinkDataCollection() {
       vendor: "D-Link",
       username: "admin",
       password: null,
-      enableCommand: "enable",
-      requiresEnable: false,
+      enableCommand: "enable", // D-Link может требовать enable
+      requiresEnable: false, // ОТКЛЮЧЕНО для простого подключения
       paginationPrompts: [
         "q Quit SPACE n Next Page ENTER Next Entry a All",
         "CTRL+C ESC q Quit SPACE n Next Page ENTER Next Entry a All"
       ],
-      paginationInput: "a",
+      paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
         config: ["show ver"],
         mac: ["show fdb"]
@@ -261,22 +261,22 @@ async function testDLinkDataCollection() {
     // Get password with multiple attempts
     let password = null;
     const maxPasswordAttempts = 3;
-
+    
     for (let attempt = 1; attempt <= maxPasswordAttempts; attempt++) {
       try {
         const answers = await inquirer.prompt([
           {
             type: 'password',
             name: 'password',
-            message: attempt === 1
-              ? 'Enter device password:'
+            message: attempt === 1 
+              ? 'Enter device password:' 
               : `Enter device password (attempt ${attempt}/${maxPasswordAttempts}):`,
             mask: '*'
           }
         ]);
-
+        
         password = answers.password;
-
+        
         // Quick test connection to validate password
         console.log(chalk.gray(`Testing connection with provided password...`));
         const testConnection = new Telnet();
@@ -292,15 +292,15 @@ async function testDLinkDataCollection() {
           execTimeout: 5000,
           debug: false
         };
-
+        
         await testConnection.connect(testParams);
         await testConnection.end();
         console.log(chalk.green(`✓ Password validated successfully`));
         break; // Password is correct, exit loop
-
+        
       } catch (error) {
         console.log(chalk.red(`✗ Connection failed: ${error.message}`));
-
+        
         if (attempt === maxPasswordAttempts) {
           throw new Error(`Failed to authenticate after ${maxPasswordAttempts} attempts`);
         } else {
@@ -326,7 +326,7 @@ async function testDLinkDataCollection() {
           await fs.mkdir(configDir, { recursive: true });
           const filename = `${device.ip.replace(/\./g, '_')}.cfg`;
           const filepath = path.join(configDir, filename);
-
+          
           // Check if file exists and log accordingly
           try {
             await fs.access(filepath);
@@ -334,7 +334,7 @@ async function testDLinkDataCollection() {
           } catch {
             console.log(chalk.gray(`Creating new file: ${filepath}`));
           }
-
+          
           await fs.writeFile(filepath, result, 'utf8');
           console.log(chalk.green(`Configuration saved: ${filepath}`));
           break; // Use first working command
@@ -361,7 +361,7 @@ async function testDLinkDataCollection() {
           await fs.mkdir(macDir, { recursive: true });
           const filename = `${device.ip.replace(/\./g, '_')}.mac`;
           const filepath = path.join(macDir, filename);
-
+          
           // Check if file exists and log accordingly
           try {
             await fs.access(filepath);
@@ -369,7 +369,7 @@ async function testDLinkDataCollection() {
           } catch {
             console.log(chalk.gray(`Creating new file: ${filepath}`));
           }
-
+          
           await fs.writeFile(filepath, result, 'utf8');
           console.log(chalk.green(`FDB table saved: ${filepath}`));
           break; // Use first working command
