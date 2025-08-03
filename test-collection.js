@@ -352,7 +352,6 @@ async function testDataCollection() {
     console.error(chalk.red(`\n✗ Test error: ${error.message}`));
   }
 }
-}
 
 if (require.main === module) {
   console.log(chalk.cyan('=== Data Collection Test ===\n'));
