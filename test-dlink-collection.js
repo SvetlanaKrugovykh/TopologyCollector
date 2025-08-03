@@ -93,6 +93,7 @@ async function executeCommand(connection, command, device) {
   return new Promise((resolve, reject) => {
     let fullResult = '';
     let isComplete = false;
+    let commandTimeout;
     
     connection.shell((error, stream) => {
       if (error) {
@@ -101,6 +102,15 @@ async function executeCommand(connection, command, device) {
       }
       
       console.log(chalk.gray('Started shell session'));
+      
+      // Set a timeout to prevent hanging
+      commandTimeout = setTimeout(() => {
+        if (!isComplete) {
+          console.log(chalk.yellow('Command timeout - forcing completion'));
+          isComplete = true;
+          stream.destroy();
+        }
+      }, 30000); // 30 second timeout
       
       // Send command immediately without waiting for prompt
       setTimeout(() => {
@@ -121,14 +131,28 @@ async function executeCommand(connection, command, device) {
         }
         // Check if command is complete (ends with prompt)
         else if (output.match(/[$%#>]\s*$/) && fullResult.length > command.length + 10) {
-          console.log(chalk.green('Command completed - prompt detected'));
-          isComplete = true;
-          stream.end();
+          if (!isComplete) {
+            console.log(chalk.green('Command completed - prompt detected'));
+            isComplete = true;
+            // Force close the stream with a timeout
+            setTimeout(() => {
+              stream.destroy();
+            }, 100);
+          }
         }
       });
       
       stream.on('close', () => {
         console.log(chalk.gray('Shell session closed'));
+        
+        // Clear timeout
+        if (commandTimeout) {
+          clearTimeout(commandTimeout);
+        }
+        
+        if (!isComplete) {
+          console.log(chalk.yellow('Session closed without completion detection'));
+        }
         
         // Clean the result - remove prompts and command echo
         let cleanResult = fullResult;
@@ -145,7 +169,6 @@ async function executeCommand(connection, command, device) {
         cleanResult = cleanResult.trim();
         
         console.log(chalk.green(`✓ Command result length: ${cleanResult.length} chars`));
-        console.log(chalk.gray(`Result preview: "${cleanResult.substring(0, 200)}"`));
         
         if (cleanResult.length > 0) {
           resolve(cleanResult);
@@ -156,6 +179,12 @@ async function executeCommand(connection, command, device) {
       
       stream.on('error', (err) => {
         console.log(chalk.red(`Shell error: ${err.message}`));
+        
+        // Clear timeout
+        if (commandTimeout) {
+          clearTimeout(commandTimeout);
+        }
+        
         reject(err);
       });
       
