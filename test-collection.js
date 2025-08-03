@@ -15,57 +15,74 @@ function needsMoreInput(output) {
     /Press SPACE to continue/i,
     /Press Enter to continue/i,
     /\[Press 'A' for All or ENTER to continue\]/i,
-    /Type <CR> to continue/i
+    /Type <CR> to continue/i,
+    /-- More --/i,
+    /\(more\)/i,
+    /\[more\]/i,
+    /press any key/i,
+    /press space/i,
+    /press enter/i,
+    /continue/i
   ];
   
-  return morePatterns.some(pattern => pattern.test(output));
-}
-
-async function handleMoreInput(connection, device) {
+  const hasMore = morePatterns.some(pattern => pattern.test(output));
+  
+  if (hasMore) {
+    console.log(chalk.blue(`DEBUG: Pagination detected with pattern matching`));
+  }
+  
+  return hasMore;
+}async function handleMoreInput(connection, device) {
   let additionalOutput = '';
   let attempts = 0;
   const maxAttempts = 50;
-  
+
   while (attempts < maxAttempts) {
     try {
       // Send space or enter to continue
       const moreResult = await connection.exec(' ');
       additionalOutput += moreResult;
-      
+
       // Check if we need to continue
       if (!needsMoreInput(moreResult)) {
         break;
       }
-      
+
       attempts++;
       console.log(chalk.gray(`  Continuing output... (${attempts}/${maxAttempts})`));
-      
+
     } catch (error) {
       console.log(chalk.red(`  Error handling more input: ${error.message}`));
       break;
     }
   }
-  
+
   if (attempts >= maxAttempts) {
     console.log(chalk.yellow(`  Maximum attempts reached for pagination`));
   }
-  
+
   return additionalOutput;
 }
 
 async function executeCommand(connection, command, device) {
   try {
     console.log(chalk.yellow(`\nTrying command: ${command}`));
-    
+
     // Send command
     let result = await connection.exec(command);
     
+    // DEBUG: Show the end of result to see pagination prompt
+    console.log(chalk.blue(`DEBUG: Last 200 chars of result:`));
+    console.log(chalk.blue(`"${result.slice(-200)}"`));
+
     // Check if additional interaction is required
     if (needsMoreInput(result)) {
       console.log(chalk.cyan('  Device requires additional input for pagination'));
       result += await handleMoreInput(connection, device);
+    } else {
+      console.log(chalk.gray('  No pagination detected'));
     }
-    
+
     return result;
   } catch (error) {
     throw error;
@@ -84,7 +101,7 @@ async function testDataCollection() {
       enableCommand: "enable",
       requiresEnable: true,
       commands: {
-        config: ["show startup-config", "show running-config", "show config"],
+        config: ["show running-config"],
         mac: ["show mac address-table"]
       },
       description: "OLT_Tatsenky"
