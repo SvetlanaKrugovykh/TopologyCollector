@@ -79,9 +79,15 @@ async function executeCommand(connection, command, device) {
     // Send command
     let result = await connection.exec(command);
     
-    // DEBUG: Show the end of result to see pagination prompt
-    console.log(chalk.blue(`DEBUG: Last 200 chars of result:`));
-    console.log(chalk.blue(`"${result.slice(-200)}"`));
+    // DEBUG: Show full output length and end
+    console.log(chalk.blue(`DEBUG: Result length: ${result.length} chars`));
+    console.log(chalk.blue(`DEBUG: Last 300 chars of result:`));
+    console.log(chalk.blue(`"${result.slice(-300)}"`));
+    
+    // Also check for --More-- specifically
+    if (result.includes('--More--')) {
+      console.log(chalk.red(`DEBUG: Found --More-- in the middle of output!`));
+    }
 
     // Check if additional interaction is required
     if (needsMoreInput(result, device)) {
@@ -93,6 +99,22 @@ async function executeCommand(connection, command, device) {
 
     return result;
   } catch (error) {
+    console.log(chalk.red(`Command execution error: ${error.message}`));
+    
+    // If timeout, try to get partial result
+    if (error.message.includes('timeout') || error.message.includes('response not received')) {
+      console.log(chalk.yellow('Timeout occurred - checking if device is waiting for input...'));
+      
+      try {
+        // Try to get current state
+        const partialResult = await connection.exec(' ');
+        console.log(chalk.blue(`Partial result after space: "${partialResult.slice(-200)}"`));
+        return partialResult;
+      } catch (e) {
+        console.log(chalk.red(`Failed to get partial result: ${e.message}`));
+      }
+    }
+    
     throw error;
   }
 }
@@ -140,7 +162,7 @@ async function testDataCollection() {
       passwordPrompt: /password[: ]*$/i,
       username: device.username,
       password: answers.password,
-      execTimeout: 60000,
+      execTimeout: 15000,  // Уменьшили до 15 секунд
       debug: false
     };
 
