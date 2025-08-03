@@ -230,7 +230,7 @@ async function testDLinkDataCollection() {
       ],
       paginationInput: "a", // D-Link ждет 'a' для показа всего
       commands: {
-        config: ["show config", "show running-config"],
+        config: ["show config current_config", "show current_config"],
         mac: ["show fdb", "show mac address-table"]
       },
       description: "D-Link_Switch_212"
