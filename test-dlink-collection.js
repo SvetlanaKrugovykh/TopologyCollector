@@ -297,77 +297,111 @@ async function testDLinkDataCollection() {
 
     console.log(chalk.cyan(`\n=== Starting data collection from ${device.ip} (${device.description}) ===`));
 
-    // Test config commands with separate connection
-    console.log(chalk.cyan('\n=== Collecting Configuration ==='));
-    for (const command of device.commands.config) {
-      try {
-        const result = await connectAndExecuteCommand(device, password, command, 'CONFIG');
+    // Use single connection for both commands - this was working!
+    const connection = new Telnet();
+    
+    try {
+      console.log(chalk.yellow(`\nConnecting to ${device.ip}...`));
+      
+      const params = {
+        host: device.ip,
+        port: 23,
+        shellPrompt: /[$%#>]/,
+        timeout: 20000,
+        loginPrompt: /(username|login)[: ]*$/i,
+        passwordPrompt: /password[: ]*$/i,
+        username: device.username,
+        password: password,
+        execTimeout: 10000,
+        debug: true
+      };
 
-        if (result && result.trim().length > 0) {
-          console.log(chalk.green(`✓ Command "${command}" successful`));
-          console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`));
+      await connection.connect(params);
+      console.log(chalk.green(`✓ Connected to ${device.ip}`));
 
-          // Save configuration
-          const configDir = './configs';
-          await fs.mkdir(configDir, { recursive: true });
-          const filename = `${device.ip.replace(/\./g, '_')}.cfg`;
-          const filepath = path.join(configDir, filename);
-          
-          // Check if file exists and log accordingly
-          try {
-            await fs.access(filepath);
-            console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
-          } catch {
-            console.log(chalk.gray(`Creating new file: ${filepath}`));
+      // Stability delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Execute both commands in sequence on same connection
+      console.log(chalk.cyan('\n=== Collecting Configuration ==='));
+      for (const command of device.commands.config) {
+        try {
+          const result = await executeCommand(connection, command, device);
+
+          if (result && result.trim().length > 0) {
+            console.log(chalk.green(`✓ Command "${command}" successful`));
+            console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`));
+
+            // Save configuration
+            const configDir = './configs';
+            await fs.mkdir(configDir, { recursive: true });
+            const filename = `${device.ip.replace(/\./g, '_')}.cfg`;
+            const filepath = path.join(configDir, filename);
+            
+            try {
+              await fs.access(filepath);
+              console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
+            } catch {
+              console.log(chalk.gray(`Creating new file: ${filepath}`));
+            }
+            
+            await fs.writeFile(filepath, result, 'utf8');
+            console.log(chalk.green(`Configuration saved: ${filepath}`));
+            break;
+          } else {
+            console.log(chalk.red(`✗ Command "${command}" returned empty result`));
           }
-          
-          await fs.writeFile(filepath, result, 'utf8');
-          console.log(chalk.green(`Configuration saved: ${filepath}`));
-          break; // Use first working command
-        } else {
-          console.log(chalk.red(`✗ Command "${command}" returned empty result`));
+        } catch (error) {
+          console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
         }
-      } catch (error) {
-        console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
       }
-    }
 
-    // Wait between commands to avoid overwhelming the device
-    console.log(chalk.gray('Waiting before FDB collection...'));
-    await new Promise(resolve => setTimeout(resolve, 3000));
+      // Small delay between commands
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Test MAC commands with separate connection
-    console.log(chalk.cyan('\n=== Collecting FDB Table ==='));
-    for (const command of device.commands.mac) {
-      try {
-        const result = await connectAndExecuteCommand(device, password, command, 'FDB');
+      // Execute FDB command on same connection
+      console.log(chalk.cyan('\n=== Collecting FDB Table ==='));
+      for (const command of device.commands.mac) {
+        try {
+          const result = await executeCommand(connection, command, device);
 
-        if (result && result.trim().length > 0) {
-          console.log(chalk.green(`✓ Command "${command}" successful`));
-          console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`));
+          if (result && result.trim().length > 0) {
+            console.log(chalk.green(`✓ Command "${command}" successful`));
+            console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`));
 
-          // Save FDB table
-          const macDir = './mac_tables';
-          await fs.mkdir(macDir, { recursive: true });
-          const filename = `${device.ip.replace(/\./g, '_')}.mac`;
-          const filepath = path.join(macDir, filename);
-          
-          // Check if file exists and log accordingly
-          try {
-            await fs.access(filepath);
-            console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
-          } catch {
-            console.log(chalk.gray(`Creating new file: ${filepath}`));
+            // Save FDB table
+            const macDir = './mac_tables';
+            await fs.mkdir(macDir, { recursive: true });
+            const filename = `${device.ip.replace(/\./g, '_')}.mac`;
+            const filepath = path.join(macDir, filename);
+            
+            try {
+              await fs.access(filepath);
+              console.log(chalk.yellow(`Overwriting existing file: ${filepath}`));
+            } catch {
+              console.log(chalk.gray(`Creating new file: ${filepath}`));
+            }
+            
+            await fs.writeFile(filepath, result, 'utf8');
+            console.log(chalk.green(`FDB table saved: ${filepath}`));
+            break;
+          } else {
+            console.log(chalk.red(`✗ Command "${command}" returned empty result`));
           }
-          
-          await fs.writeFile(filepath, result, 'utf8');
-          console.log(chalk.green(`FDB table saved: ${filepath}`));
-          break; // Use first working command
-        } else {
-          console.log(chalk.red(`✗ Command "${command}" returned empty result`));
+        } catch (error) {
+          console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
         }
-      } catch (error) {
-        console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
+      }
+
+      await connection.end();
+      console.log(chalk.gray('Connection closed'));
+
+    } catch (error) {
+      console.log(chalk.red(`Connection error: ${error.message}`));
+      try {
+        await connection.end();
+      } catch (e) {
+        // Ignore connection close errors
       }
     }
 
