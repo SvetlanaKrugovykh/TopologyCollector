@@ -88,50 +88,17 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // Special handling for show fdb command
-  if (command === 'show fdb') {
-    try {
-      console.log(chalk.yellow(`\nExecuting FDB command with special handling: ${command}`));
-      
-      // First, send the command
-      const initialResult = await connection.exec(command);
-      console.log(chalk.gray(`Initial result length: ${initialResult.length} chars`));
-      console.log(chalk.gray(`Initial result preview: "${initialResult.substring(0, 200)}"`));
-      
-      let fullResult = initialResult;
-      
-      // Check if we need pagination
-      if (needsMoreInput(initialResult, device)) {
-        console.log(chalk.cyan('Pagination detected for FDB command, sending "a" for all...'));
-        
-        // Send "a" to get all data
-        const additionalData = await connection.exec('a');
-        fullResult += additionalData;
-        console.log(chalk.gray(`Additional data length: ${additionalData.length} chars`));
-      }
-      
-      console.log(chalk.green(`✓ FDB command completed, total length: ${fullResult.length} chars`));
-      return fullResult;
-      
-    } catch (error) {
-      console.log(chalk.red(`FDB command failed: ${error.message}`));
-      // Try with longer timeout
-      try {
-        console.log(chalk.yellow('Retrying FDB command with longer timeout...'));
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const retryResult = await connection.exec(command);
-        return retryResult;
-      } catch (retryError) {
-        console.log(chalk.red(`FDB retry failed: ${retryError.message}`));
-        throw error;
-      }
-    }
-  }
+  // Simple exec method with longer timeout for show fdb
+  const isShowFdb = command === 'show fdb';
+  const execTimeout = isShowFdb ? 30000 : 5000; // 30 seconds for FDB, 5 for others
   
-  // Regular command execution for other commands
   try {
     console.log(chalk.yellow(`\nExecuting command with exec(): ${command}`));
-    const result = await connection.exec(command);
+    if (isShowFdb) {
+      console.log(chalk.gray(`Using extended timeout: ${execTimeout}ms`));
+    }
+    
+    const result = await connection.exec(command, { timeout: execTimeout });
     console.log(chalk.green(`✓ Command executed successfully with exec()`));
     console.log(chalk.gray(`Result length: ${result.length} chars`));
     console.log(chalk.gray(`Result preview: "${result.substring(0, 200)}"`));
