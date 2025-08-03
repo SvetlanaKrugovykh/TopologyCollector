@@ -150,6 +150,53 @@ async function executeCommand(connection, command, device) {
   });
 }
 
+async function connectAndExecuteCommand(device, password, command, commandType) {
+  const connection = new Telnet();
+  
+  try {
+    console.log(chalk.yellow(`\nConnecting to ${device.ip} for ${commandType} command...`));
+    
+    const params = {
+      host: device.ip,
+      port: 23,
+      shellPrompt: /[$%#>]/,
+      timeout: 30000,
+      loginPrompt: /(username|login)[: ]*$/i,
+      passwordPrompt: /password[: ]*$/i,
+      username: device.username,
+      password: password,
+      execTimeout: 15000,
+      debug: false
+    };
+
+    await connection.connect(params);
+    console.log(chalk.green(`✓ Connected to ${device.ip}`));
+
+    // Enter privileged mode if required
+    if (device.requiresEnable && device.enableCommand) {
+      console.log(chalk.gray(`Entering privileged mode...`));
+      await connection.exec(device.enableCommand);
+      console.log(chalk.green('✓ Entered privileged mode'));
+    }
+
+    // Execute the command
+    const result = await executeCommand(connection, command, device);
+    
+    await connection.end();
+    console.log(chalk.gray(`Connection closed for ${commandType} command`));
+    
+    return result;
+    
+  } catch (error) {
+    console.log(chalk.red(`Error in ${commandType} command execution: ${error.message}`));
+    try {
+      await connection.end();
+    } catch (e) {
+      // Ignore connection close errors
+    }
+    throw error;
+  }
+}
 async function testDataCollection() {
   try {
     // Device configuration
@@ -170,72 +217,70 @@ async function testDataCollection() {
       description: "OLT_Tatsenky"
     };
 
-    // Get password
-    const answers = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'password',
-        message: 'Enter device password:',
-        mask: '*'
-      }
-    ]);
+    console.log(chalk.cyan(`\n=== Device Information ===`));
+    console.log(chalk.white(`IP Address: ${device.ip}`));
+    console.log(chalk.white(`Description: ${device.description}`));
+    console.log(chalk.white(`Vendor: ${device.vendor} ${device.type.toUpperCase()}`));
+    console.log(chalk.white(`Username: ${device.username}`));
 
-    console.log(chalk.yellow(`\nConnecting to ${device.ip} (${device.description})...`));
-
-    // Connect to device
-    const connection = new Telnet();
-    const params = {
-      host: device.ip,
-      port: 23,
-      shellPrompt: /[$%#>]/,
-      timeout: 30000,
-      loginPrompt: /(username|login)[: ]*$/i,
-      passwordPrompt: /password[: ]*$/i,
-      username: device.username,
-      password: answers.password,
-      execTimeout: 15000,  // Уменьшили до 15 секунд
-      debug: false
-    };
-
-    await connection.connect(params);
-    console.log(chalk.green(`✓ Connected to ${device.ip}`));
-
-    // Enter privileged mode if required
-    if (device.requiresEnable && device.enableCommand) {
+    // Get password with multiple attempts
+    let password = null;
+    const maxPasswordAttempts = 3;
+    
+    for (let attempt = 1; attempt <= maxPasswordAttempts; attempt++) {
       try {
-        console.log(chalk.yellow(`\nEntering privileged mode with command: ${device.enableCommand}`));
-        await connection.exec(device.enableCommand);
-        console.log(chalk.green('✓ Entered privileged mode'));
+        const answers = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'password',
+            message: attempt === 1 
+              ? 'Enter device password:' 
+              : `Enter device password (attempt ${attempt}/${maxPasswordAttempts}):`,
+            mask: '*'
+          }
+        ]);
+        
+        password = answers.password;
+        
+        // Quick test connection to validate password
+        console.log(chalk.gray(`Testing connection with provided password...`));
+        const testConnection = new Telnet();
+        const testParams = {
+          host: device.ip,
+          port: 23,
+          shellPrompt: /[$%#>]/,
+          timeout: 15000,
+          loginPrompt: /(username|login)[: ]*$/i,
+          passwordPrompt: /password[: ]*$/i,
+          username: device.username,
+          password: password,
+          execTimeout: 5000,
+          debug: false
+        };
+        
+        await testConnection.connect(testParams);
+        await testConnection.end();
+        console.log(chalk.green(`✓ Password validated successfully`));
+        break; // Password is correct, exit loop
+        
       } catch (error) {
-        console.log(chalk.red(`✗ Failed to enter privileged mode: ${error.message}`));
+        console.log(chalk.red(`✗ Connection failed: ${error.message}`));
+        
+        if (attempt === maxPasswordAttempts) {
+          throw new Error(`Failed to authenticate after ${maxPasswordAttempts} attempts`);
+        } else {
+          console.log(chalk.yellow(`Please try again...`));
+        }
       }
     }
 
-    // First, get available commands
-    console.log(chalk.cyan('\n=== Getting Available Commands ==='));
-    try {
-      console.log(chalk.yellow('\nTrying command: help'));
-      const helpResult = await connection.exec('help');
-      console.log(chalk.green('✓ Help command result:'));
-      console.log(chalk.gray(helpResult.substring(0, 1000) + (helpResult.length > 1000 ? '\n... (truncated)' : '')));
-    } catch (error) {
-      console.log(chalk.red(`✗ Help command failed: ${error.message}`));
+    console.log(chalk.cyan(`\n=== Starting data collection from ${device.ip} (${device.description}) ===`));
 
-      try {
-        console.log(chalk.yellow('\nTrying command: ?'));
-        const questionResult = await connection.exec('?');
-        console.log(chalk.green('✓ ? command result:'));
-        console.log(chalk.gray(questionResult.substring(0, 1000) + (questionResult.length > 1000 ? '\n... (truncated)' : '')));
-      } catch (error2) {
-        console.log(chalk.red(`✗ ? command also failed: ${error2.message}`));
-      }
-    }
-
-    // Test config commands
-    console.log(chalk.cyan('\n=== Testing Configuration Commands ==='));
+    // Test config commands with separate connection
+    console.log(chalk.cyan('\n=== Collecting Configuration ==='));
     for (const command of device.commands.config) {
       try {
-        const result = await executeCommand(connection, command, device);
+        const result = await connectAndExecuteCommand(device, password, command, 'CONFIG');
 
         if (result && result.trim().length > 0) {
           console.log(chalk.green(`✓ Command "${command}" successful`));
@@ -266,14 +311,11 @@ async function testDataCollection() {
       }
     }
 
-    // Test MAC commands - TEMPORARILY DISABLED
-    console.log(chalk.cyan('\n=== Testing MAC Table Commands - SKIPPED ==='));
-    console.log(chalk.yellow('MAC table commands disabled to focus on config command'));
-
-    /*
+    // Test MAC commands with separate connection
+    console.log(chalk.cyan('\n=== Collecting MAC Table ==='));
     for (const command of device.commands.mac) {
       try {
-        const result = await executeCommand(connection, command, device);
+        const result = await connectAndExecuteCommand(device, password, command, 'MAC');
 
         if (result && result.trim().length > 0) {
           console.log(chalk.green(`✓ Command "${command}" successful`));
@@ -303,14 +345,13 @@ async function testDataCollection() {
         console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`));
       }
     }
-    */
 
-    await connection.end();
-    console.log(chalk.green('\n✓ Data collection test completed'));
+    console.log(chalk.green('\n✓ Data collection completed successfully'));
 
   } catch (error) {
     console.error(chalk.red(`\n✗ Test error: ${error.message}`));
   }
+}
 }
 
 if (require.main === module) {
