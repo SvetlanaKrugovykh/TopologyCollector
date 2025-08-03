@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 // Simple test script to verify the integration works
+// Load .env before importing index.js
 require('dotenv').config()
+
 const TopologyCollector = require('./index.js')
 const chalk = require('chalk')
 
