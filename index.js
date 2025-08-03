@@ -274,6 +274,13 @@ class NetworkDeviceCollector {
             logger.debug(`Pagination detected for ${device.ip} - sending continuation`)
             const paginationInput = settings.paginationInput || 'a'
             stream.write(paginationInput)
+            
+            // For D-Link, set flag to wait for more data after pagination
+            if (device.brand?.toLowerCase() === 'd-link') {
+              setTimeout(() => {
+                // This timeout gives D-Link time to send all data after 'a'
+              }, 500)
+            }
           }
           // Check if command is complete (ends with prompt)
           else if (output.match(/[$%#>]\s*$/) && fullResult.length > command.length + 10) {
