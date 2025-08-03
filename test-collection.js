@@ -7,6 +7,71 @@ const { Telnet } = require('telnet-client');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 
+// Functions for handling pagination
+function needsMoreInput(output) {
+  const morePatterns = [
+    /--More--/i,
+    /Press any key to continue/i,
+    /Press SPACE to continue/i,
+    /Press Enter to continue/i,
+    /\[Press 'A' for All or ENTER to continue\]/i,
+    /Type <CR> to continue/i
+  ];
+  
+  return morePatterns.some(pattern => pattern.test(output));
+}
+
+async function handleMoreInput(connection, device) {
+  let additionalOutput = '';
+  let attempts = 0;
+  const maxAttempts = 50;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Send space or enter to continue
+      const moreResult = await connection.exec(' ');
+      additionalOutput += moreResult;
+      
+      // Check if we need to continue
+      if (!needsMoreInput(moreResult)) {
+        break;
+      }
+      
+      attempts++;
+      console.log(chalk.gray(`  Continuing output... (${attempts}/${maxAttempts})`));
+      
+    } catch (error) {
+      console.log(chalk.red(`  Error handling more input: ${error.message}`));
+      break;
+    }
+  }
+  
+  if (attempts >= maxAttempts) {
+    console.log(chalk.yellow(`  Maximum attempts reached for pagination`));
+  }
+  
+  return additionalOutput;
+}
+
+async function executeCommand(connection, command, device) {
+  try {
+    console.log(chalk.yellow(`\nTrying command: ${command}`));
+    
+    // Send command
+    let result = await connection.exec(command);
+    
+    // Check if additional interaction is required
+    if (needsMoreInput(result)) {
+      console.log(chalk.cyan('  Device requires additional input for pagination'));
+      result += await handleMoreInput(connection, device);
+    }
+    
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function testDataCollection() {
   try {
     // Device configuration
@@ -19,7 +84,7 @@ async function testDataCollection() {
       enableCommand: "enable",
       requiresEnable: true,
       commands: {
-        config: ["show running-config"],
+        config: ["show startup-config", "show running-config", "show config"],
         mac: ["show mac address-table"]
       },
       description: "OLT_Tatsenky"
@@ -90,8 +155,7 @@ async function testDataCollection() {
     console.log(chalk.cyan('\n=== Testing Configuration Commands ==='));
     for (const command of device.commands.config) {
       try {
-        console.log(chalk.yellow(`\nTrying command: ${command}`));
-        const result = await connection.exec(command);
+        const result = await executeCommand(connection, command, device);
 
         if (result && result.trim().length > 0) {
           console.log(chalk.green(`✓ Command "${command}" successful`));
@@ -117,8 +181,7 @@ async function testDataCollection() {
     console.log(chalk.cyan('\n=== Testing MAC Table Commands ==='));
     for (const command of device.commands.mac) {
       try {
-        console.log(chalk.yellow(`\nTrying command: ${command}`));
-        const result = await connection.exec(command);
+        const result = await executeCommand(connection, command, device);
 
         if (result && result.trim().length > 0) {
           console.log(chalk.green(`✓ Command "${command}" successful`));
