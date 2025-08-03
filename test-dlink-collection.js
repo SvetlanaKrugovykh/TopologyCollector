@@ -91,10 +91,20 @@ async function executeCommand(connection, command, device) {
   try {
     console.log(chalk.yellow(`\nExecuting command: ${command}`));
     
+    // Special debug for show fdb
+    if (command === 'show fdb') {
+      console.log(chalk.blue('DEBUG: Starting show fdb with extended timeout...'));
+    }
+    
     // Send command and get full response
     const fullResponse = await connection.exec(command);
     console.log(chalk.gray(`Full response length: ${fullResponse.length} chars`));
     console.log(chalk.gray(`Full response: "${fullResponse}"`));
+    
+    // If response is very short, it might be just a prompt - this is suspicious
+    if (fullResponse.length < 50) {
+      console.log(chalk.yellow(`WARNING: Very short response (${fullResponse.length} chars) - might be incomplete`));
+    }
     
     // Clean the response - remove command echo and prompts
     let cleanResult = fullResponse;
@@ -275,6 +285,17 @@ async function testDLinkDataCollection() {
 
       await connection.connect(params);
       console.log(chalk.green(`✓ Connected to ${device.ip}`));
+
+      // Clear any initial output and wait for prompt
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Send empty command to clear buffer and get clean prompt
+      try {
+        await connection.exec('');
+        console.log(chalk.gray('Buffer cleared'));
+      } catch (e) {
+        // Ignore errors from empty command
+      }
 
       // Small delay
       await new Promise(resolve => setTimeout(resolve, 500));
