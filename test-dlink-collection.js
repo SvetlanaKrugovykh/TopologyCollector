@@ -88,7 +88,47 @@ async function handleMoreInput(connection, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  // Try exec method first - this was working in the successful version
+  // Special handling for show fdb command
+  if (command === 'show fdb') {
+    try {
+      console.log(chalk.yellow(`\nExecuting FDB command with special handling: ${command}`));
+      
+      // First, send the command
+      const initialResult = await connection.exec(command);
+      console.log(chalk.gray(`Initial result length: ${initialResult.length} chars`));
+      console.log(chalk.gray(`Initial result preview: "${initialResult.substring(0, 200)}"`));
+      
+      let fullResult = initialResult;
+      
+      // Check if we need pagination
+      if (needsMoreInput(initialResult, device)) {
+        console.log(chalk.cyan('Pagination detected for FDB command, sending "a" for all...'));
+        
+        // Send "a" to get all data
+        const additionalData = await connection.exec('a');
+        fullResult += additionalData;
+        console.log(chalk.gray(`Additional data length: ${additionalData.length} chars`));
+      }
+      
+      console.log(chalk.green(`✓ FDB command completed, total length: ${fullResult.length} chars`));
+      return fullResult;
+      
+    } catch (error) {
+      console.log(chalk.red(`FDB command failed: ${error.message}`));
+      // Try with longer timeout
+      try {
+        console.log(chalk.yellow('Retrying FDB command with longer timeout...'));
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retryResult = await connection.exec(command);
+        return retryResult;
+      } catch (retryError) {
+        console.log(chalk.red(`FDB retry failed: ${retryError.message}`));
+        throw error;
+      }
+    }
+  }
+  
+  // Regular command execution for other commands
   try {
     console.log(chalk.yellow(`\nExecuting command with exec(): ${command}`));
     const result = await connection.exec(command);
@@ -244,12 +284,12 @@ async function testDLinkDataCollection() {
         host: device.ip,
         port: 23,
         shellPrompt: /[$%#>]/,
-        timeout: 15000,
+        timeout: 20000, // Longer timeout for FDB command
         loginPrompt: /(username|login)[: ]*$/i,
         passwordPrompt: /password[: ]*$/i,
         username: device.username,
         password: password,
-        execTimeout: 5000,
+        execTimeout: 15000, // Much longer exec timeout for FDB
         debug: false
       };
 
