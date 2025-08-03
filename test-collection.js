@@ -78,6 +78,7 @@ async function executeCommand(connection, command, device) {
     
     let fullResult = '';
     let isComplete = false;
+    let commandSent = false;
     
     // Use shell() method for raw interaction
     connection.shell((error, stream) => {
@@ -95,26 +96,51 @@ async function executeCommand(connection, command, device) {
         
         console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
         
-        // Check if we need to handle pagination
-        if (needsMoreInput(output, device)) {
-          console.log(chalk.cyan('Pagination detected - sending space...'));
-          stream.write(device.paginationInput || ' ');
+        // If we haven't sent the command yet and see a prompt, send it
+        if (!commandSent && output.match(/[$%#>]\s*$/)) {
+          console.log(chalk.gray(`Sending command: ${command}`));
+          stream.write(command + '\r\n');
+          commandSent = true;
+          return;
         }
-        // Check if command is complete (ends with prompt)
-        else if (output.match(/[$%#>]\s*$/)) {
-          console.log(chalk.green('Command completed - prompt detected'));
-          isComplete = true;
-          stream.end();
+        
+        // Only process responses after command was sent
+        if (commandSent) {
+          // Check if we need to handle pagination
+          if (needsMoreInput(output, device)) {
+            console.log(chalk.cyan('Pagination detected - sending space...'));
+            stream.write(device.paginationInput || ' ');
+          }
+          // Check if command is complete (ends with prompt)
+          else if (output.match(/[$%#>]\s*$/)) {
+            console.log(chalk.green('Command completed - prompt detected'));
+            isComplete = true;
+            
+            // Clean up the result (remove command echo and prompt)
+            let cleanResult = fullResult;
+            // Remove command echo from the beginning
+            const commandIndex = cleanResult.indexOf(command);
+            if (commandIndex !== -1) {
+              cleanResult = cleanResult.substring(commandIndex + command.length);
+            }
+            // Remove final prompt
+            cleanResult = cleanResult.replace(/[$%#>]\s*$/, '').trim();
+            
+            stream.end();
+            resolve(cleanResult);
+          }
         }
       });
       
       stream.on('close', () => {
         console.log(chalk.gray('Shell session closed'));
-        if (isComplete) {
-          console.log(chalk.green(`✓ Command completed, result length: ${fullResult.length}`));
-          resolve(fullResult);
-        } else {
-          reject(new Error('Command did not complete properly'));
+        if (!isComplete) {
+          if (fullResult.length > 0) {
+            console.log(chalk.yellow('Session closed but got partial result'));
+            resolve(fullResult);
+          } else {
+            reject(new Error('Command did not complete properly'));
+          }
         }
       });
       
@@ -122,10 +148,6 @@ async function executeCommand(connection, command, device) {
         console.log(chalk.red(`Shell error: ${err.message}`));
         reject(err);
       });
-      
-      // Send the command
-      console.log(chalk.gray(`Sending command: ${command}`));
-      stream.write(command + '\r\n');
       
       // Set timeout for safety
       setTimeout(() => {
