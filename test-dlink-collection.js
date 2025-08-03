@@ -123,6 +123,7 @@ async function executeCommand(connection, command, device) {
         fullResult += output;
         
         console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
+        console.log(chalk.gray(`Full output so far: "${output}"`));
         
         // Check if we need to handle pagination
         if (needsMoreInput(output, device)) {
