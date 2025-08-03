@@ -123,15 +123,18 @@ async function executeCommand(connection, command, device) {
         fullResult += output;
         
         console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
-        console.log(chalk.gray(`Full output so far: "${output}"`));
+        console.log(chalk.gray(`Checking for pagination in last 200 chars: "${fullResult.slice(-200)}"`));
         
         // Check if we need to handle pagination
         if (needsMoreInput(output, device)) {
           console.log(chalk.cyan('Pagination detected - sending "a" for All...'));
           stream.write(device.paginationInput || 'a');
+        } else {
+          console.log(chalk.red('No pagination pattern found!'));
         }
+        
         // Check if command is complete (ends with prompt)
-        else if (output.match(/[$%#>]\s*$/)) {
+        if (output.match(/[$%#>]\s*$/)) {
           console.log(chalk.green('Command completed - prompt detected'));
           isComplete = true;
           
