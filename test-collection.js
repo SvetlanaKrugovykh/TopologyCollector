@@ -73,74 +73,67 @@ function needsMoreInput(output, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  try {
-    console.log(chalk.yellow(`\nTrying command: ${command}`));
-
-    // Send command
-    let result = await connection.exec(command);
-    
-    // DEBUG: Show full output length and end
-    console.log(chalk.blue(`DEBUG: Result length: ${result.length} chars`));
-    console.log(chalk.blue(`DEBUG: Last 300 chars of result:`));
-    console.log(chalk.blue(`"${result.slice(-300)}"`));
-    
-    // Also check for --More-- specifically
-    if (result.includes('--More--')) {
-      console.log(chalk.red(`DEBUG: Found --More-- in the middle of output!`));
-    }
-
-    // Check if additional interaction is required
-    if (needsMoreInput(result, device)) {
-      console.log(chalk.cyan('  Device requires additional input for pagination'));
-      result += await handleMoreInput(connection, device);
-    } else {
-      console.log(chalk.gray('  No pagination detected'));
-    }
-
-    return result;
-  } catch (error) {
-    console.log(chalk.red(`Command execution error: ${error.message}`));
-    
-    // If timeout, the command probably stopped at --More--
-    if (error.message.includes('timeout') || error.message.includes('response not received')) {
-      console.log(chalk.yellow('Timeout occurred - device is likely waiting for pagination input...'));
+  console.log(chalk.yellow(`\nTrying command: ${command}`));
+  
+  // Use sendln for direct command sending
+  await connection.sendln(command);
+  
+  let fullResult = '';
+  let attempts = 0;
+  const maxAttempts = 100;
+  
+  console.log(chalk.gray('Waiting for command output...'));
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Get data with short timeout
+      const chunk = await connection.nextData(5000); // 5 second timeout
+      fullResult += chunk;
       
-      try {
-        // Start pagination handling immediately
-        console.log(chalk.cyan('Starting pagination handling from timeout state...'));
-        let result = '';
-        let attempts = 0;
-        const maxAttempts = 200;
-        const inputChar = device.paginationInput || ' ';
-
-        while (attempts < maxAttempts) {
-          console.log(chalk.gray(`  Sending "${inputChar}" for pagination... (${attempts + 1}/${maxAttempts})`));
-          
-          const moreResult = await connection.exec(inputChar);
-          result += moreResult;
-          
-          console.log(chalk.blue(`  Result part ${attempts + 1}: "${moreResult.slice(-100)}"`));
-
-          // Check if we need to continue
-          if (!needsMoreInput(moreResult, device)) {
-            console.log(chalk.green(`✓ Pagination completed after ${attempts + 1} attempts`));
-            break;
-          }
-
-          attempts++;
-        }
-        
-        if (result && result.trim().length > 0) {
-          console.log(chalk.green(`✓ Successfully recovered from timeout with pagination`));
-          return result;
-        }
-      } catch (e) {
-        console.log(chalk.red(`Failed to handle pagination after timeout: ${e.message}`));
+      console.log(chalk.blue(`Chunk ${attempts + 1}: "${chunk.slice(-100)}"`));
+      
+      // Check if we need to send space for pagination
+      if (needsMoreInput(chunk, device)) {
+        console.log(chalk.cyan('Pagination detected - sending space...'));
+        await connection.send(device.paginationInput || ' ');
+        attempts++;
+        continue;
+      }
+      
+      // Check if command completed (ends with prompt)
+      if (chunk.match(/OLT_Tatsenky[#>$]\s*$/)) {
+        console.log(chalk.green('Command completed - device prompt detected'));
+        break;
+      }
+      
+      attempts++;
+      
+    } catch (error) {
+      if (error.message.includes('timeout')) {
+        console.log(chalk.yellow('Timeout waiting for more data - command may be complete'));
+        break;
+      } else {
+        console.log(chalk.red(`Error getting data: ${error.message}`));
+        break;
       }
     }
-    
-    throw error;
   }
+  
+  // Clean up result
+  let cleanResult = fullResult;
+  
+  // Remove command echo from beginning
+  const commandIndex = cleanResult.indexOf(command);
+  if (commandIndex !== -1) {
+    cleanResult = cleanResult.substring(commandIndex + command.length);
+  }
+  
+  // Remove device prompt from end
+  cleanResult = cleanResult.replace(/OLT_Tatsenky[#>$]\s*$/, '').trim();
+  
+  console.log(chalk.green(`✓ Command completed, clean result length: ${cleanResult.length}`));
+  
+  return cleanResult;
 }
 
 async function testDataCollection() {
