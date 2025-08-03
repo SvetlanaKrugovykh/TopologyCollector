@@ -73,96 +73,74 @@ function needsMoreInput(output, device) {
 }
 
 async function executeCommand(connection, command, device) {
-  return new Promise((resolve, reject) => {
+  try {
     console.log(chalk.yellow(`\nTrying command: ${command}`));
+
+    // Send command
+    let result = await connection.exec(command);
     
-    let fullResult = '';
-    let isComplete = false;
-    let commandSent = false;
+    // DEBUG: Show full output length and end
+    console.log(chalk.blue(`DEBUG: Result length: ${result.length} chars`));
+    console.log(chalk.blue(`DEBUG: Last 300 chars of result:`));
+    console.log(chalk.blue(`"${result.slice(-300)}"`));
     
-    // Use shell() method for raw interaction
-    connection.shell((error, stream) => {
-      if (error) {
-        reject(error);
-        return;
+    // Also check for --More-- specifically
+    if (result.includes('--More--')) {
+      console.log(chalk.red(`DEBUG: Found --More-- in the middle of output!`));
+    }
+
+    // Check if additional interaction is required
+    if (needsMoreInput(result, device)) {
+      console.log(chalk.cyan('  Device requires additional input for pagination'));
+      result += await handleMoreInput(connection, device);
+    } else {
+      console.log(chalk.gray('  No pagination detected'));
+    }
+
+    return result;
+  } catch (error) {
+    console.log(chalk.red(`Command execution error: ${error.message}`));
+    
+    // If timeout, the command probably stopped at --More--
+    if (error.message.includes('timeout') || error.message.includes('response not received')) {
+      console.log(chalk.yellow('Timeout occurred - device is likely waiting for pagination input...'));
+      
+      try {
+        // Start pagination handling immediately
+        console.log(chalk.cyan('Starting pagination handling from timeout state...'));
+        let result = '';
+        let attempts = 0;
+        const maxAttempts = 200;
+        const inputChar = device.paginationInput || ' ';
+
+        while (attempts < maxAttempts) {
+          console.log(chalk.gray(`  Sending "${inputChar}" for pagination... (${attempts + 1}/${maxAttempts})`));
+          
+          const moreResult = await connection.exec(inputChar);
+          result += moreResult;
+          
+          console.log(chalk.blue(`  Result part ${attempts + 1}: "${moreResult.slice(-100)}"`));
+
+          // Check if we need to continue
+          if (!needsMoreInput(moreResult, device)) {
+            console.log(chalk.green(`✓ Pagination completed after ${attempts + 1} attempts`));
+            break;
+          }
+
+          attempts++;
+        }
+        
+        if (result && result.trim().length > 0) {
+          console.log(chalk.green(`✓ Successfully recovered from timeout with pagination`));
+          return result;
+        }
+      } catch (e) {
+        console.log(chalk.red(`Failed to handle pagination after timeout: ${e.message}`));
       }
-      
-      console.log(chalk.gray('Started shell session for command execution'));
-      
-      // Set up data handler
-      stream.on('data', (data) => {
-        const output = data.toString();
-        fullResult += output;
-        
-        console.log(chalk.blue(`Received data (${output.length} chars): "${output.slice(-100)}"`));
-        
-        // If we haven't sent the command yet and see a prompt, send it
-        if (!commandSent && output.match(/[$%#>]\s*$/)) {
-          console.log(chalk.gray(`Sending command: ${command}`));
-          stream.write(command + '\r\n');
-          commandSent = true;
-          return;
-        }
-        
-        // Only process responses after command was sent
-        if (commandSent) {
-          // Check if we need to handle pagination
-          if (needsMoreInput(output, device)) {
-            console.log(chalk.cyan('Pagination detected - sending space...'));
-            stream.write(device.paginationInput || ' ');
-          }
-          // Check if command is complete (ends with prompt)
-          else if (output.match(/[$%#>]\s*$/)) {
-            console.log(chalk.green('Command completed - prompt detected'));
-            isComplete = true;
-            
-            // Clean up the result (remove command echo and prompt)
-            let cleanResult = fullResult;
-            // Remove command echo from the beginning
-            const commandIndex = cleanResult.indexOf(command);
-            if (commandIndex !== -1) {
-              cleanResult = cleanResult.substring(commandIndex + command.length);
-            }
-            // Remove final prompt
-            cleanResult = cleanResult.replace(/[$%#>]\s*$/, '').trim();
-            
-            stream.end();
-            resolve(cleanResult);
-          }
-        }
-      });
-      
-      stream.on('close', () => {
-        console.log(chalk.gray('Shell session closed'));
-        if (!isComplete) {
-          if (fullResult.length > 0) {
-            console.log(chalk.yellow('Session closed but got partial result'));
-            resolve(fullResult);
-          } else {
-            reject(new Error('Command did not complete properly'));
-          }
-        }
-      });
-      
-      stream.on('error', (err) => {
-        console.log(chalk.red(`Shell error: ${err.message}`));
-        reject(err);
-      });
-      
-      // Set timeout for safety
-      setTimeout(() => {
-        if (!isComplete) {
-          console.log(chalk.yellow('Command timeout - forcing completion'));
-          stream.end();
-          if (fullResult.length > 0) {
-            resolve(fullResult);
-          } else {
-            reject(new Error('Command timeout with no result'));
-          }
-        }
-      }, 120000); // 2 minutes timeout
-    });
-  });
+    }
+    
+    throw error;
+  }
 }
 
 async function testDataCollection() {
