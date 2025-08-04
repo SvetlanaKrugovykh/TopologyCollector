@@ -611,6 +611,16 @@ class NetworkDeviceCollector {
 
   async collectAll() {
     await this.collectConfigs()
+    
+    // Special pause for D-Link devices before MAC collection
+    const hasDelinkDevices = this.devices.some(device => 
+      device.brand?.toLowerCase() === 'd-link')
+    
+    if (hasDelinkDevices) {
+      logger.info('Pausing before MAC table collection for D-Link devices...')
+      await this.sleep(5000) // 5 second pause for D-Link
+    }
+    
     await this.collectMacTables()
   }
 
