@@ -709,7 +709,11 @@ class NetworkDeviceCollector {
         }
 
         // Calculate total commands for D-Link logout logic
-        const totalCommands = device.commands.config.length + device.commands.mac.length
+        let totalCommands = device.commands.config.length + device.commands.mac.length
+        // Add 1 for config append command if needed
+        if (brand === 'd-link' && device.appendMissingConfig) {
+          totalCommands += 1
+        }
         let commandIndex = 0
 
         // Collect configurations
@@ -732,16 +736,73 @@ class NetworkDeviceCollector {
           }
         }
 
+        // For D-Link devices with appendMissingConfig: try to get remaining config data
+        if (brand === 'd-link' && device.appendMissingConfig) {
+          try {
+            commandIndex++
+            const isLastCommand = commandIndex === totalCommands
+            logger.info(`D-Link ${device.ip}: Attempting to collect remaining configuration data`)
+            const remainingOutput = await this.executeCommand(connection, 'show config effective', device, isLastCommand)
+            
+            // Check if we got meaningful remaining config (not just prompt)
+            if (remainingOutput && remainingOutput.length > 50 && !remainingOutput.includes('Command: logout')) {
+              // Append to existing config file
+              const filename = `${device.ip.replace(/\./g, '_')}.cfg`
+              const filepath = path.join(this.configsDir, filename)
+              const existingConfig = await fs.readFile(filepath, 'utf8')
+              const completedConfig = existingConfig + '\n' + remainingOutput
+              await fs.writeFile(filepath, completedConfig, 'utf8')
+              logger.info(`D-Link ${device.ip}: Appended remaining configuration data`)
+            } else {
+              logger.debug(`D-Link ${device.ip}: No meaningful remaining config data found`)
+            }
+            
+            // Pause before MAC commands (only if not the last command)
+            if (!isLastCommand) {
+              await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+            }
+          } catch (error) {
+            logger.warn(`D-Link ${device.ip}: Error collecting remaining config: ${error.message}`)
+          }
+        }
+
         // Collect MAC tables in the same session
         for (const command of device.commands.mac) {
           try {
             commandIndex++
             const isLastCommand = commandIndex === totalCommands
             const output = await this.executeCommand(connection, command, device, isLastCommand)
+            
+            // For D-Link devices: clean output from config remnants
+            let cleanOutput = output
+            if (brand === 'd-link') {
+              // Remove config-like content that might have leaked into MAC output
+              const configPatterns = [
+                /^#.*$/gm,
+                /^config .*$/gm,
+                /^create .*$/gm,
+                /^disable .*$/gm,
+                /^enable .*$/gm,
+                /^\s*DGS-.*$/gm,
+                /Command: logout.*$/gs,
+                /\*+\s*Logout\s*\*+/gs
+              ]
+              
+              configPatterns.forEach(pattern => {
+                cleanOutput = cleanOutput.replace(pattern, '')
+              })
+              
+              // Remove empty lines
+              cleanOutput = cleanOutput.replace(/^\s*[\r\n]/gm, '')
+              cleanOutput = cleanOutput.trim()
+              
+              logger.debug(`D-Link ${device.ip}: Cleaned MAC output from ${output.length} to ${cleanOutput.length} chars`)
+            }
+            
             // Save MAC table
             const filename = `${device.ip.replace(/\./g, '_')}.mac`
             const filepath = path.join(this.macTablesDir, filename)
-            await fs.writeFile(filepath, output, 'utf8')
+            await fs.writeFile(filepath, cleanOutput, 'utf8')
             logger.info(`MAC table saved: ${filepath}`)
             // Pause between commands (only if not the last command)
             if (!isLastCommand) {
