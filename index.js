@@ -318,12 +318,12 @@ class NetworkDeviceCollector {
     }
   }
 
-  async executeCommand(connection, command, device) {
+  async executeCommand(connection, command, device, isLastCommand = false) {
     const settings = this.getDeviceSettings(device)
     const connectionMethod = settings.connectionMethod || 'exec'
 
     if (connectionMethod === 'shell') {
-      return await this.executeCommandWithShell(connection, command, device)
+      return await this.executeCommandWithShell(connection, command, device, isLastCommand)
     } else {
       return await this.executeCommandWithExec(connection, command, device)
     }
@@ -352,12 +352,12 @@ class NetworkDeviceCollector {
     }
   }
 
-  async executeCommandWithShell(connection, command, device) {
+  async executeCommandWithShell(connection, command, device, isLastCommand = false) {
     logger.debug(`Executing command with shell() on ${device.ip}: ${command}`)
 
     // Use special D-Link logic if it's a D-Link device
     if (device.brand?.toLowerCase() === 'd-link') {
-      return this.executeCommandForDLink(connection, command, device)
+      return this.executeCommandForDLink(connection, command, device, isLastCommand)
     }
 
     const settings = this.getDeviceSettings(device)
@@ -451,7 +451,7 @@ class NetworkDeviceCollector {
   }
 
   // Special method for D-Link devices with exact working logic from test
-  async executeCommandForDLink(connection, command, device) {
+  async executeCommandForDLink(connection, command, device, isLastCommand = false) {
     logger.debug(`Executing D-Link command with shell(): ${command}`)
 
     return new Promise((resolve, reject) => {
@@ -487,10 +487,10 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug(`D-Link inactivity timeout (${INACTIVITY_MS} ms): no more data, closing stream`)
               isComplete = true
-              // Try to send 'logout' before destroy
-              if (!logoutSent && !streamClosed) {
+              // Only send 'logout' if this is the last command
+              if (isLastCommand && !logoutSent && !streamClosed) {
                 logoutSent = true;
-                logger.debug('Sending "logout" to D-Link before closing stream')
+                logger.debug('Sending "logout" to D-Link before closing stream (last command)')
                 stream.write('logout\r\n')
                 setTimeout(() => {
                   if (!streamClosed) stream.destroy()
@@ -528,10 +528,10 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug('D-Link command completed - prompt detected')
               isComplete = true
-              // Try to send 'logout' before destroy
-              if (!logoutSent && !streamClosed) {
+              // Only send 'logout' if this is the last command
+              if (isLastCommand && !logoutSent && !streamClosed) {
                 logoutSent = true;
-                logger.debug('Sending "logout" to D-Link before closing stream')
+                logger.debug('Sending "logout" to D-Link before closing stream (last command)')
                 stream.write('logout\r\n')
                 setTimeout(() => {
                   if (!streamClosed) stream.destroy()
@@ -708,17 +708,25 @@ class NetworkDeviceCollector {
           }
         }
 
+        // Calculate total commands for D-Link logout logic
+        const totalCommands = device.commands.config.length + device.commands.mac.length
+        let commandIndex = 0
+
         // Collect configurations
         for (const command of device.commands.config) {
           try {
-            const output = await this.executeCommand(connection, command, device)
+            commandIndex++
+            const isLastCommand = commandIndex === totalCommands
+            const output = await this.executeCommand(connection, command, device, isLastCommand)
             // Save configuration
             const filename = `${device.ip.replace(/\./g, '_')}.cfg`
             const filepath = path.join(this.configsDir, filename)
             await fs.writeFile(filepath, output, 'utf8')
             logger.info(`Configuration saved: ${filepath}`)
-            // Pause between commands
-            await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+            // Pause between commands (only if not the last command)
+            if (!isLastCommand) {
+              await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+            }
           } catch (error) {
             logger.error(`Error collecting configuration from ${device.ip} with command "${command}": ${error.message}`)
           }
@@ -727,14 +735,18 @@ class NetworkDeviceCollector {
         // Collect MAC tables in the same session
         for (const command of device.commands.mac) {
           try {
-            const output = await this.executeCommand(connection, command, device)
+            commandIndex++
+            const isLastCommand = commandIndex === totalCommands
+            const output = await this.executeCommand(connection, command, device, isLastCommand)
             // Save MAC table
             const filename = `${device.ip.replace(/\./g, '_')}.mac`
             const filepath = path.join(this.macTablesDir, filename)
             await fs.writeFile(filepath, output, 'utf8')
             logger.info(`MAC table saved: ${filepath}`)
-            // Pause between commands
-            await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+            // Pause between commands (only if not the last command)
+            if (!isLastCommand) {
+              await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+            }
           } catch (error) {
             logger.error(`Error collecting MAC table from ${device.ip} with command "${command}": ${error.message}`)
           }
