@@ -598,23 +598,28 @@ class NetworkDeviceCollector {
 
   async collectMacTables() {
     logger.info('Starting MAC table collection')
-    
     for (const device of this.devices) {
       let connection = null
       try {
         connection = await this.connectToDevice(device)
-        
+        // For Cisco: send 'terminal length 0' before MAC table command
+        const brand = (device.brand || device.vendor || '').toLowerCase()
+        if (brand === 'cisco') {
+          try {
+            await this.executeCommand(connection, 'terminal length 0', device)
+            await this.sleep(500)
+          } catch (e) {
+            logger.warn(`Failed to set terminal length 0 on ${device.ip}: ${e.message}`)
+          }
+        }
         for (const command of device.commands.mac) {
           const output = await this.executeCommand(connection, command, device)
-          
           // Save MAC table
           const filename = `${device.ip.replace(/\./g, '_')}.mac`
           const filepath = path.join(this.macTablesDir, filename)
-          
           await fs.writeFile(filepath, output, 'utf8')
           logger.info(`MAC table saved: ${filepath}`)
         }
-        
       } catch (error) {
         logger.error(`Error collecting MAC table from ${device.ip}: ${error.message}`)
       } finally {
@@ -626,7 +631,6 @@ class NetworkDeviceCollector {
           }
         }
       }
-      
       // Pause between devices
       await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
     }
