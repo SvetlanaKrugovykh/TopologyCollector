@@ -188,16 +188,8 @@ class NetworkDeviceCollector {
         usedPassword = device.credentials.password
       }
     }
-    
-    // Debug log (mask password but show length and first/last char for verification)
-    if (usedPassword) {
-      const masked = usedPassword.replace(/./g, '*')
-      const firstChar = usedPassword.charAt(0)
-      const lastChar = usedPassword.charAt(usedPassword.length - 1)
-      logger.debug(`Password for ${device.ip}: ${masked} (length: ${usedPassword.length}, first: '${firstChar}', last: '${lastChar}')`)
-    } else {
-      logger.debug(`Password for ${device.ip}: [empty]`)
-    }
+    // Debug log (mask password)
+    logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
 
     const params = {
       host: device.ip,
