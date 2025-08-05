@@ -633,6 +633,10 @@ class NetworkDeviceCollector {
               logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
             }
           }
+          if (brand === 'd-link') {
+            logger.info('Pausing after D-Link connection close to allow device to release session...')
+            await this.sleep(3000)
+          }
         }
         // Pause between commands
         await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
