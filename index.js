@@ -160,10 +160,25 @@ class NetworkDeviceCollector {
     const timeout = settings.timeout || parseInt(process.env.TELNET_TIMEOUT) || 30000
     const execTimeout = settings.execTimeout || parseInt(process.env.COMMAND_TIMEOUT) || 10000
     
+    // Use shellPrompt from settings if present, else default
+    let shellPrompt = /[$%#>]/
+    if (settings.shellPrompt) {
+      try {
+        // If shellPrompt is a string like '/.../', convert to RegExp
+        if (typeof settings.shellPrompt === 'string' && settings.shellPrompt.startsWith('/')) {
+          const match = settings.shellPrompt.match(/^\/(.*)\/(.*)$/)
+          if (match) {
+            shellPrompt = new RegExp(match[1], match[2] || '')
+          }
+        } else if (settings.shellPrompt instanceof RegExp) {
+          shellPrompt = settings.shellPrompt
+        }
+      } catch {}
+    }
     const params = {
       host: device.ip,
       port: 23,
-      shellPrompt: /[$%#>]/,
+      shellPrompt: shellPrompt,
       timeout: timeout,
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
@@ -547,18 +562,24 @@ class NetworkDeviceCollector {
       let connection = null
       try {
         connection = await this.connectToDevice(device)
-        
+        // For Cisco: send 'terminal length 0' before config command
+        const brand = (device.brand || device.vendor || '').toLowerCase()
+        if (brand === 'cisco') {
+          try {
+            await this.executeCommand(connection, 'terminal length 0', device)
+            await this.sleep(500)
+          } catch (e) {
+            logger.warn(`Failed to set terminal length 0 on ${device.ip}: ${e.message}`)
+          }
+        }
         for (const command of device.commands.config) {
           const output = await this.executeCommand(connection, command, device)
-          
           // Save configuration
           const filename = `${device.ip.replace(/\./g, '_')}.cfg`
           const filepath = path.join(this.configsDir, filename)
-          
           await fs.writeFile(filepath, output, 'utf8')
           logger.info(`Configuration saved: ${filepath}`)
         }
-        
       } catch (error) {
         logger.error(`Error collecting configuration from ${device.ip}: ${error.message}`)
       } finally {
@@ -570,7 +591,6 @@ class NetworkDeviceCollector {
           }
         }
       }
-      
       // Pause between devices
       await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
     }
