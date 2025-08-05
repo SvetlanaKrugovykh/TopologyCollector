@@ -40,21 +40,25 @@ async function executeCommand(connection, command) {
 
 async function testHuaweiDataCollection() {
   try {
-    // Запрос username и password
+    // Prompt for password only
 
     const answers = await inquirer.prompt([
       { type: 'password', name: 'password', message: 'Enter device password:', mask: '*' }
     ])
     const device = {
-      ip: '192.168.100.100', // <-- Замените на свой IP
+      ip: '192.168.165.33',
       type: 'switch',
       vendor: 'Huawei',
       password: answers.password,
+      requiresEnable: true,
+      enableCommand: 'system',
+      paginationPrompts: ["--More--", "Press any key", "continue"],
+      paginationInput: ' ',
       commands: {
-        config: ['system', 'display saved-configuration'],
-        mac: ['display mac-address']
+        config: ["display saved-configuration"],
+        mac: ["display mac-address"]
       },
-      description: 'Huawei_Switch_100'
+      description: 'Huawei switch'
     }
 
     console.log(chalk.cyan(`\n=== Device Information ===`))
@@ -79,12 +83,14 @@ async function testHuaweiDataCollection() {
       await connection.connect(params)
       console.log(chalk.green(`✓ Connected to ${device.ip}`))
 
-      // Войти в system (аналог enable)
-      await connection.exec('system')
-      console.log(chalk.green('✓ Entered system mode'))
+      // Enter system mode (privileged), if required
+      if (device.requiresEnable && device.enableCommand) {
+        await connection.exec(device.enableCommand)
+        console.log(chalk.green('✓ Entered system mode'))
+      }
 
-      // Сбор конфига
-      for (const command of device.commands.config.slice(1)) {
+      // Collect configuration
+      for (const command of device.commands.config) {
         try {
           console.log(chalk.cyan(`\n=== Collecting Configuration ===`))
           const result = await executeCommand(connection, command)
@@ -105,7 +111,7 @@ async function testHuaweiDataCollection() {
         }
       }
 
-      // Сбор MAC-таблицы
+      // Collect MAC table
       for (const command of device.commands.mac) {
         try {
           console.log(chalk.cyan(`\n=== Collecting MAC Table ===`))
