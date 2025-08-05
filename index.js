@@ -176,8 +176,13 @@ class NetworkDeviceCollector {
       } catch {}
     }
 
-    // Password: only device.credentials.password or global password
-    let usedPassword = device.credentials?.password || this.globalPassword
+    // Password: use device.credentials.password only if not null/empty, else use global password
+    let usedPassword = this.globalPassword
+    if (device.credentials && Object.prototype.hasOwnProperty.call(device.credentials, 'password')) {
+      if (device.credentials.password !== null && device.credentials.password !== '') {
+        usedPassword = device.credentials.password
+      }
+    }
     // Debug log (mask password)
     logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
 
