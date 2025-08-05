@@ -359,6 +359,7 @@ class NetworkDeviceCollector {
       let isComplete = false
       let commandTimeout
 
+
       connection.shell((error, stream) => {
         if (error) {
           reject(error)
@@ -376,6 +377,21 @@ class NetworkDeviceCollector {
           }
         }, 30000); // 30 second timeout
 
+        // Inactivity timer for end-of-output detection
+        let inactivityTimer = null
+        // Allow per-device override via inactivityTimeout (ms) in JSON, else default 1500
+        const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0) ? device.inactivityTimeout : 1500
+        function resetInactivityTimer() {
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          inactivityTimer = setTimeout(() => {
+            if (!isComplete) {
+              logger.debug(`D-Link inactivity timeout (${INACTIVITY_MS} ms): no more data, closing stream`)
+              isComplete = true
+              stream.destroy()
+            }
+          }, INACTIVITY_MS)
+        }
+
         // Send command immediately without waiting for prompt
         setTimeout(() => {
           logger.debug(`Sending D-Link command immediately: ${command}`)
@@ -388,6 +404,9 @@ class NetworkDeviceCollector {
 
           // Log last 200 chars of each chunk for debug
           logger.debug(`D-Link output chunk (last 200 chars): "${output.slice(-200)}"`)
+
+          // Reset inactivity timer on every data chunk
+          resetInactivityTimer()
 
           // Check for D-Link pagination patterns
           if (this.needsMoreInput(output, device)) {
@@ -405,6 +424,13 @@ class NetworkDeviceCollector {
               }, 100)
             }
           }
+        })
+
+        // On close, clear inactivity timer
+        stream.on('close', () => {
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          logger.debug('D-Link shell session closed')
+          // ...existing code...
         })
 
         stream.on('close', () => {
