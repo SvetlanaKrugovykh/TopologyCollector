@@ -165,17 +165,6 @@ class NetworkDeviceCollector {
       logger.debug(`D-Link device detected: ${device.ip} - forcing cleanup before connection`)
     }
 
-    // Ask for password for each device (testing)
-    const answers = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'password',
-        message: `Enter password for device ${device.ip}:`,
-        mask: '*'
-      }
-    ])
-    const freshPassword = answers.password
-
     // Use shellPrompt from settings if present, else default
     let shellPrompt = /[$%#>]/
     if (settings.shellPrompt) {
@@ -192,8 +181,8 @@ class NetworkDeviceCollector {
       } catch { }
     }
 
-    // Password: use fresh password for each device (testing)
-    let usedPassword = freshPassword
+    // Password: use global password
+    let usedPassword = this.globalPassword
     // Debug log (mask password)
     logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
 
@@ -700,70 +689,83 @@ class NetworkDeviceCollector {
   }
 
   async collectConfigs() {
-    logger.info('Starting configuration collection')
+    logger.info('Starting configuration and MAC table collection')
 
     for (const device of this.devices) {
       const brand = (device.brand || device.vendor || '').toLowerCase()
+      let connection = null
 
-      // Ask for password once per device (testing)
-      const answers = await inquirer.prompt([
-        {
-          type: 'password',
-          name: 'password',
-          message: `Enter password for device ${device.ip}:`,
-          mask: '*'
-        }
-      ])
-      const devicePassword = answers.password
-
-      for (const command of device.commands.config) {
-        let connection = null
-        try {
-          connection = await this.connectToDeviceWithPassword(device, devicePassword)
-          // For Cisco: send 'terminal length 0' before config command
-          if (brand === 'cisco') {
-            try {
-              await this.executeCommand(connection, 'terminal length 0', device)
-              await this.sleep(500)
-            } catch (e) {
-              logger.warn(`Failed to set terminal length 0 on ${device.ip}: ${e.message}`)
-            }
+      try {
+        connection = await this.connectToDevice(device)
+        
+        // For Cisco: send 'terminal length 0' before commands
+        if (brand === 'cisco') {
+          try {
+            await this.executeCommand(connection, 'terminal length 0', device)
+            await this.sleep(500)
+          } catch (e) {
+            logger.warn(`Failed to set terminal length 0 on ${device.ip}: ${e.message}`)
           }
-          const output = await this.executeCommand(connection, command, device)
-          // Save configuration
-          const filename = `${device.ip.replace(/\./g, '_')}.cfg`
-          const filepath = path.join(this.configsDir, filename)
-          await fs.writeFile(filepath, output, 'utf8')
-          logger.info(`Configuration saved: ${filepath}`)
-        } catch (error) {
-          logger.error(`Error collecting configuration from ${device.ip}: ${error.message}`)
-        } finally {
-          if (connection) {
-            try {
-              logger.debug(`Closing connection to ${device.ip}`)
-              await connection.end()
-              logger.debug(`Connection closed to ${device.ip}`)
-            } catch (error) {
-              logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
-              // D-Link: force destroy connection
-              if (brand === 'd-link') {
-                try {
-                  logger.debug(`Force destroying D-Link connection to ${device.ip}`)
-                  connection.destroy()
-                } catch (e) {
-                  logger.debug(`Failed to destroy connection: ${e.message}`)
-                }
+        }
+
+        // Collect configurations
+        for (const command of device.commands.config) {
+          try {
+            const output = await this.executeCommand(connection, command, device)
+            // Save configuration
+            const filename = `${device.ip.replace(/\./g, '_')}.cfg`
+            const filepath = path.join(this.configsDir, filename)
+            await fs.writeFile(filepath, output, 'utf8')
+            logger.info(`Configuration saved: ${filepath}`)
+            // Pause between commands
+            await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+          } catch (error) {
+            logger.error(`Error collecting configuration from ${device.ip} with command "${command}": ${error.message}`)
+          }
+        }
+
+        // Collect MAC tables in the same session
+        for (const command of device.commands.mac) {
+          try {
+            const output = await this.executeCommand(connection, command, device)
+            // Save MAC table
+            const filename = `${device.ip.replace(/\./g, '_')}.mac`
+            const filepath = path.join(this.macTablesDir, filename)
+            await fs.writeFile(filepath, output, 'utf8')
+            logger.info(`MAC table saved: ${filepath}`)
+            // Pause between commands
+            await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+          } catch (error) {
+            logger.error(`Error collecting MAC table from ${device.ip} with command "${command}": ${error.message}`)
+          }
+        }
+
+      } catch (error) {
+        logger.error(`Error connecting to ${device.ip}: ${error.message}`)
+      } finally {
+        if (connection) {
+          try {
+            logger.debug(`Closing connection to ${device.ip}`)
+            await connection.end()
+            logger.debug(`Connection closed to ${device.ip}`)
+          } catch (error) {
+            logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
+            // D-Link: force destroy connection
+            if (brand === 'd-link') {
+              try {
+                logger.debug(`Force destroying D-Link connection to ${device.ip}`)
+                connection.destroy()
+              } catch (e) {
+                logger.debug(`Failed to destroy connection: ${e.message}`)
               }
             }
           }
-          // D-Link: pause after connection close
-          if (brand === 'd-link') {
-            logger.info('Pausing after D-Link connection close to allow device to release session...')
-            await this.sleep(8000) // Extended pause to 8 seconds
-          }
         }
-        // Pause between commands
-        await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
+        // D-Link: pause after connection close
+        if (brand === 'd-link') {
+          logger.info('Pausing after D-Link connection close to allow device to release session...')
+          await this.sleep(8000) // Extended pause to 8 seconds
+        }
       }
     }
   }
@@ -825,18 +827,8 @@ class NetworkDeviceCollector {
   }
 
   async collectAll() {
+    // Now collectConfigs handles both configs and MAC tables in one session
     await this.collectConfigs()
-
-    // Special pause for D-Link devices before MAC collection
-    const hasDelinkDevices = this.devices.some(device =>
-      device.brand?.toLowerCase() === 'd-link')
-
-    if (hasDelinkDevices) {
-      logger.info('Pausing before MAC table collection for D-Link devices...')
-      await this.sleep(5000) // 5 second pause for D-Link
-    }
-
-    await this.collectMacTables()
   }
 
   sleep(ms) {
