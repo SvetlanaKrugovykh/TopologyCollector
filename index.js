@@ -208,7 +208,7 @@ class NetworkDeviceCollector {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
       logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
       
-      // D-Link: попробуем сначала очистить возможные висящие соединения
+      // D-Link: try to clear possible hanging connections first
       if (device.brand?.toLowerCase() === 'd-link') {
         logger.debug(`D-Link connection attempt to ${device.ip}`)
       }
@@ -645,7 +645,7 @@ class NetworkDeviceCollector {
               logger.debug(`Connection closed to ${device.ip}`)
             } catch (error) {
               logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
-              // D-Link: принудительно уничтожить соединение
+              // D-Link: force destroy connection
               if (brand === 'd-link') {
                 try {
                   logger.debug(`Force destroying D-Link connection to ${device.ip}`)
