@@ -255,7 +255,7 @@ async function testDLinkDataCollection() {
   try {
     // Device configuration for D-Link switch
     const device = {
-      ip: "192.168.165.212",
+      ip: "192.168.65.244",
       type: "switch",
       vendor: "D-Link",
       username: "admin",
@@ -271,7 +271,7 @@ async function testDLinkDataCollection() {
         config: ["show config effective"],
         mac: ["show fdb"]
       },
-      description: "D-Link_Switch_212"
+      description: "D-Link_Switch - Test Collection"
     }
 
     console.log(chalk.cyan(`\n=== Device Information ===`))
