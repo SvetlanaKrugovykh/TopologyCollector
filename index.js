@@ -160,6 +160,11 @@ class NetworkDeviceCollector {
     const timeout = settings.timeout || parseInt(process.env.TELNET_TIMEOUT) || 30000
     const execTimeout = settings.execTimeout || parseInt(process.env.COMMAND_TIMEOUT) || 10000
 
+    // D-Link: Force cleanup of existing connections
+    if (device.brand?.toLowerCase() === 'd-link') {
+      logger.debug(`D-Link device detected: ${device.ip} - forcing cleanup before connection`)
+    }
+
     // Use shellPrompt from settings if present, else default
     let shellPrompt = /[$%#>]/
     if (settings.shellPrompt) {
@@ -201,6 +206,13 @@ class NetworkDeviceCollector {
 
     try {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
+      logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
+      
+      // D-Link: попробуем сначала очистить возможные висящие соединения
+      if (device.brand?.toLowerCase() === 'd-link') {
+        logger.debug(`D-Link connection attempt to ${device.ip}`)
+      }
+      
       await connection.connect(params)
       logger.info(`Successfully connected to ${device.ip}`)
 
@@ -628,14 +640,26 @@ class NetworkDeviceCollector {
         } finally {
           if (connection) {
             try {
+              logger.debug(`Closing connection to ${device.ip}`)
               await connection.end()
+              logger.debug(`Connection closed to ${device.ip}`)
             } catch (error) {
               logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
+              // D-Link: принудительно уничтожить соединение
+              if (brand === 'd-link') {
+                try {
+                  logger.debug(`Force destroying D-Link connection to ${device.ip}`)
+                  connection.destroy()
+                } catch (e) {
+                  logger.debug(`Failed to destroy connection: ${e.message}`)
+                }
+              }
             }
           }
+          // D-Link: пауза после закрытия соединения
           if (brand === 'd-link') {
             logger.info('Pausing after D-Link connection close to allow device to release session...')
-            await this.sleep(3000)
+            await this.sleep(8000) // Увеличил паузу до 8 секунд
           }
         }
         // Pause between commands
@@ -672,10 +696,26 @@ class NetworkDeviceCollector {
         } finally {
           if (connection) {
             try {
+              logger.debug(`Closing MAC connection to ${device.ip}`)
               await connection.end()
+              logger.debug(`MAC connection closed to ${device.ip}`)
             } catch (error) {
-              logger.warn(`Error closing connection to ${device.ip}: ${error.message}`)
+              logger.warn(`Error closing MAC connection to ${device.ip}: ${error.message}`)
+              // D-Link: принудительно уничтожить соединение
+              if (brand === 'd-link') {
+                try {
+                  logger.debug(`Force destroying D-Link MAC connection to ${device.ip}`)
+                  connection.destroy()
+                } catch (e) {
+                  logger.debug(`Failed to destroy MAC connection: ${e.message}`)
+                }
+              }
             }
+          }
+          // D-Link: пауза после закрытия соединения 
+          if (brand === 'd-link') {
+            logger.info('Pausing after D-Link connection close to allow device to release session...')
+            await this.sleep(8000)
           }
         }
         // Pause between commands
