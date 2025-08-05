@@ -122,13 +122,14 @@ class NetworkDeviceCollector {
   }
 
   getDeviceSettings(device) {
-    // 1. Если есть device.connectionSettings — используем их полностью
+    // 1. If device.connectionSettings exists, use it fully
     if (device.connectionSettings) {
       return device.connectionSettings
     }
 
-    // 2. Получаем настройки бренда (brandSettings) как базу
-    const brand = device.brand
+    // 2. Get brand settings (brandSettings) as base
+    // If device.brand is missing, use device.vendor
+    const brand = device.brand || device.vendor
     let base = this.brandSettings[brand] ? { ...this.brandSettings[brand] } : {
       connectionMethod: 'exec',
       paginationMethod: 'exec',
@@ -140,7 +141,7 @@ class NetworkDeviceCollector {
       execTimeout: 30000
     }
 
-    // 3. Если в устройстве явно указаны таймауты — они имеют приоритет
+    // 3. If timeouts are explicitly set in device, they take priority
     for (const key of ['timeout','commandTimeout','execTimeout','shellTimeout']) {
       if (device[key] !== undefined && device[key] !== null) {
         base[key] = device[key]
