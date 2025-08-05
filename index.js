@@ -712,7 +712,7 @@ class NetworkDeviceCollector {
               }
             }
           }
-          // D-Link: пауза после закрытия соединения 
+          // D-Link: pause after connection close
           if (brand === 'd-link') {
             logger.info('Pausing after D-Link connection close to allow device to release session...')
             await this.sleep(8000)
