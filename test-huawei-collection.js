@@ -69,6 +69,7 @@ async function testHuaweiDataCollection() {
     const connection = new Telnet()
     try {
       console.log(chalk.yellow(`\nConnecting to ${device.ip}...`))
+
       const params = {
         host: device.ip,
         port: 23,
@@ -76,12 +77,20 @@ async function testHuaweiDataCollection() {
         timeout: 60000,
         loginPrompt: /(username|login)[: ]*$/i,
         passwordPrompt: /password[: ]*$/i,
+        username: 'admin',
         password: device.password,
         execTimeout: 60000,
-        debug: false
+        debug: true
       }
       await connection.connect(params)
       console.log(chalk.green(`✓ Connected to ${device.ip}`))
+      // Send empty command to clear buffer and get prompt
+      try {
+        await connection.exec('')
+        console.log(chalk.gray('Buffer cleared, ready for commands'))
+      } catch (e) {
+        console.log(chalk.yellow('Buffer clear failed (ignored)'))
+      }
 
       // Enter system mode (privileged), if required
       if (device.requiresEnable && device.enableCommand) {
