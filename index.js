@@ -122,22 +122,14 @@ class NetworkDeviceCollector {
   }
 
   getDeviceSettings(device) {
-    // First try to get settings from device-specific connectionSettings
+    // 1. Если есть device.connectionSettings — используем их полностью
     if (device.connectionSettings) {
       return device.connectionSettings
     }
-    
-    // Then try to get settings by brand
+
+    // 2. Получаем настройки бренда (brandSettings) как базу
     const brand = device.brand
-    if (brand && this.brandSettings[brand]) {
-      logger.debug(`Using brand settings for ${device.ip} (${brand})`)
-      logger.debug(`Brand settings for ${brand}:`, this.brandSettings[brand])
-      return this.brandSettings[brand]
-    }
-    
-    // Fall back to default settings
-    logger.debug(`Using default settings for ${device.ip}`)
-    return {
+    let base = this.brandSettings[brand] ? { ...this.brandSettings[brand] } : {
       connectionMethod: 'exec',
       paginationMethod: 'exec',
       timeout: 30000,
@@ -147,6 +139,16 @@ class NetworkDeviceCollector {
       commandTimeout: 10000,
       execTimeout: 30000
     }
+
+    // 3. Если в устройстве явно указаны таймауты — они имеют приоритет
+    for (const key of ['timeout','commandTimeout','execTimeout','shellTimeout']) {
+      if (device[key] !== undefined && device[key] !== null) {
+        base[key] = device[key]
+      }
+    }
+
+    logger.debug(`Device settings for ${device.ip}:`, base)
+    return base
   }
 
   async connectToDevice(device) {
