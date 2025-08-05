@@ -40,14 +40,13 @@ async function executeCommand(connection, command) {
 async function testCiscoDataCollection() {
   try {
     const answers = await inquirer.prompt([
-      { type: 'input', name: 'username', message: 'Enter device username:', default: 'admin' },
       { type: 'password', name: 'password', message: 'Enter device password:', mask: '*' }
     ])
     const device = {
       ip: '192.168.165.199',
       type: 'switch',
       vendor: 'Cisco',
-      username: answers.username,
+      username: 'admin',
       password: answers.password,
       requiresEnable: false,
       enableCommand: null,
@@ -64,7 +63,6 @@ async function testCiscoDataCollection() {
     console.log(chalk.white(`IP Address: ${device.ip}`))
     console.log(chalk.white(`Description: ${device.description}`))
     console.log(chalk.white(`Vendor: ${device.vendor} ${device.type.toUpperCase()}`))
-    console.log(chalk.white(`Username: ${device.username}`))
 
     const connection = new Telnet()
     connection.on('data', data => {
