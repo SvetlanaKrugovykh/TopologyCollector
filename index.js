@@ -358,7 +358,8 @@ class NetworkDeviceCollector {
       let fullResult = ''
       let isComplete = false
       let commandTimeout
-
+      let inactivityTimer = null
+      let streamClosed = false
 
       connection.shell((error, stream) => {
         if (error) {
@@ -373,12 +374,10 @@ class NetworkDeviceCollector {
           if (!isComplete) {
             logger.warn('D-Link command timeout - forcing completion')
             isComplete = true
-            stream.destroy()
+            if (!streamClosed) stream.destroy()
           }
-        }, 30000); // 30 second timeout
+        }, 30000) // 30 second timeout
 
-        // Inactivity timer for end-of-output detection
-        let inactivityTimer = null
         // Allow per-device override via inactivityTimeout (ms) in JSON, else default 1500
         const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0) ? device.inactivityTimeout : 1500
         function resetInactivityTimer() {
@@ -387,7 +386,7 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug(`D-Link inactivity timeout (${INACTIVITY_MS} ms): no more data, closing stream`)
               isComplete = true
-              stream.destroy()
+              if (!streamClosed) stream.destroy()
             }
           }, INACTIVITY_MS)
         }
@@ -396,7 +395,7 @@ class NetworkDeviceCollector {
         setTimeout(() => {
           logger.debug(`Sending D-Link command immediately: ${command}`)
           stream.write(command + '\r\n')
-        }, 500); // Small delay to establish session
+        }, 500) // Small delay to establish session
 
         stream.on('data', (data) => {
           const output = data.toString()
@@ -418,28 +417,19 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug('D-Link command completed - prompt detected')
               isComplete = true
-              // Force close the stream with a timeout
               setTimeout(() => {
-                stream.destroy()
+                if (!streamClosed) stream.destroy()
               }, 100)
             }
           }
         })
 
-        // On close, clear inactivity timer
+        // Only one close handler
         stream.on('close', () => {
+          streamClosed = true
           if (inactivityTimer) clearTimeout(inactivityTimer)
+          if (commandTimeout) clearTimeout(commandTimeout)
           logger.debug('D-Link shell session closed')
-          // ...existing code...
-        })
-
-        stream.on('close', () => {
-          logger.debug('D-Link shell session closed')
-
-          // Clear timeout
-          if (commandTimeout) {
-            clearTimeout(commandTimeout)
-          }
 
           if (!isComplete) {
             logger.warn('D-Link session closed without completion detection')
@@ -447,14 +437,10 @@ class NetworkDeviceCollector {
 
           // Clean the result - remove prompts and command echo (D-Link specific)
           let cleanResult = fullResult
-
-          // Remove everything before the command
           const commandIndex = cleanResult.indexOf(command)
           if (commandIndex !== -1) {
             cleanResult = cleanResult.substring(commandIndex + command.length)
           }
-
-          // Remove trailing D-Link prompts
           cleanResult = cleanResult.replace(/DGS-\d+-\d+SC:[a-zA-Z]+[#$>]\s*$/, '')
           cleanResult = cleanResult.replace(/[#$>]\s*$/, '')
           cleanResult = cleanResult.trim()
@@ -470,12 +456,8 @@ class NetworkDeviceCollector {
 
         stream.on('error', (err) => {
           logger.error(`D-Link shell error: ${err.message}`)
-
-          // Clear timeout
-          if (commandTimeout) {
-            clearTimeout(commandTimeout)
-          }
-
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          if (commandTimeout) clearTimeout(commandTimeout)
           reject(err)
         })
       })
