@@ -109,16 +109,9 @@ class NetworkDeviceCollector {
     }
   }
 
+  // Удаляем глобальный пароль, теперь пароль будет запрашиваться для каждого устройства при необходимости
   async askForPassword() {
-    const answers = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'password',
-        message: 'Enter administrator password for devices:',
-        mask: '*'
-      }
-    ])
-    this.globalPassword = answers.password
+    // ничего не делаем, оставлено для совместимости
   }
 
   getDeviceSettings(device) {
@@ -175,6 +168,19 @@ class NetworkDeviceCollector {
         }
       } catch {}
     }
+    // Если пароль не задан в устройстве, спрашиваем у пользователя
+    let password = device.credentials?.password || device.password
+    if (!password) {
+      const answers = await inquirer.prompt([
+        {
+          type: 'password',
+          name: 'password',
+          message: `Enter password for ${device.ip} (${device.name || device.description || ''}):`,
+          mask: '*'
+        }
+      ])
+      password = answers.password
+    }
     const params = {
       host: device.ip,
       port: 23,
@@ -183,7 +189,7 @@ class NetworkDeviceCollector {
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.credentials?.username || device.username || 'admin',
-      password: device.credentials?.password || device.password || this.globalPassword,
+      password: password,
       execTimeout: execTimeout,
       debug: false
     }
