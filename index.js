@@ -154,12 +154,12 @@ class NetworkDeviceCollector {
 
   async connectToDevice(device) {
     const connection = new Telnet()
-    
+
     // Get connection settings from brand settings or device config
     const settings = this.getDeviceSettings(device)
     const timeout = settings.timeout || parseInt(process.env.TELNET_TIMEOUT) || 30000
     const execTimeout = settings.execTimeout || parseInt(process.env.COMMAND_TIMEOUT) || 10000
-    
+
     // Use shellPrompt from settings if present, else default
     let shellPrompt = /[$%#>]/
     if (settings.shellPrompt) {
@@ -175,6 +175,20 @@ class NetworkDeviceCollector {
         }
       } catch {}
     }
+
+    // Always use globalPassword unless device.credentials.password или device.password явно заданы
+    let usedPassword = null
+    if (device.credentials?.password) {
+      usedPassword = device.credentials.password
+    } else if (device.password) {
+      usedPassword = device.password
+    } else {
+      usedPassword = this.globalPassword
+    }
+
+    // Debug log (маскируем пароль)
+    logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
+
     const params = {
       host: device.ip,
       port: 23,
@@ -183,7 +197,7 @@ class NetworkDeviceCollector {
       loginPrompt: /(username|login)[: ]*$/i,
       passwordPrompt: /password[: ]*$/i,
       username: device.credentials?.username || device.username || 'admin',
-      password: device.credentials?.password || device.password || this.globalPassword,
+      password: usedPassword,
       execTimeout: execTimeout,
       debug: false
     }
@@ -192,10 +206,10 @@ class NetworkDeviceCollector {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
       await connection.connect(params)
       logger.info(`Successfully connected to ${device.ip}`)
-      
+
       // Enter privileged mode if required
       logger.debug(`Checking enable requirements for ${device.ip}: settings.requiresEnable=${settings.requiresEnable}, device.requiresEnable=${device.requiresEnable}, device.enableCommand=${device.enableCommand}`)
-      
+
       if ((settings.requiresEnable || device.requiresEnable) && device.enableCommand) {
         try {
           console.log(chalk.cyan(`✓ Enable condition met for ${device.ip} - sending command: ${device.enableCommand}`))
@@ -210,7 +224,7 @@ class NetworkDeviceCollector {
       } else {
         console.log(chalk.gray(`- No enable command needed for ${device.ip}`))
       }
-      
+
       return connection
     } catch (error) {
       logger.error(`Connection error to ${device.ip}: ${error.message}`)
