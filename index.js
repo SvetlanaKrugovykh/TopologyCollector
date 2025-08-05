@@ -656,10 +656,10 @@ class NetworkDeviceCollector {
               }
             }
           }
-          // D-Link: пауза после закрытия соединения
+          // D-Link: pause after connection close
           if (brand === 'd-link') {
             logger.info('Pausing after D-Link connection close to allow device to release session...')
-            await this.sleep(8000) // Увеличил паузу до 8 секунд
+            await this.sleep(8000) // Extended pause to 8 seconds
           }
         }
         // Pause between commands
@@ -701,7 +701,7 @@ class NetworkDeviceCollector {
               logger.debug(`MAC connection closed to ${device.ip}`)
             } catch (error) {
               logger.warn(`Error closing MAC connection to ${device.ip}: ${error.message}`)
-              // D-Link: принудительно уничтожить соединение
+              // D-Link: force destroy connection
               if (brand === 'd-link') {
                 try {
                   logger.debug(`Force destroying D-Link MAC connection to ${device.ip}`)
