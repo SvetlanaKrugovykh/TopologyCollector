@@ -24,8 +24,8 @@ const logger = winston.createLogger({
         winston.format.simple()
       )
     }),
-    new winston.transports.File({ 
-      filename: process.env.LOG_FILE || './logs/collector.log' 
+    new winston.transports.File({
+      filename: process.env.LOG_FILE || './logs/collector.log'
     })
   ]
 })
@@ -38,7 +38,7 @@ class NetworkDeviceCollector {
     this.configsDir = process.env.CONFIGS_DIR || './configs'
     this.macTablesDir = process.env.MAC_TABLES_DIR || './mac_tables'
     this.logsDir = process.env.LOGS_DIR || './logs'
-    
+
     // Build full path to devices file
     const dataDir = process.env.DATA_DIR || './data'
     const devicesFileName = process.env.DEVICES_FILE || 'devices.json'
@@ -50,16 +50,16 @@ class NetworkDeviceCollector {
     try {
       // Create necessary directories
       await this.ensureDirectories()
-      
+
       // Load brand settings
       await this.loadBrandSettings()
-      
+
       // Load device list
       await this.loadDevices()
-      
+
       // Ask user for password
       await this.askForPassword()
-      
+
       logger.info('Initialization completed successfully')
     } catch (error) {
       logger.error(`Initialization error: ${error.message}`)
@@ -142,7 +142,7 @@ class NetworkDeviceCollector {
     }
 
     // 3. If timeouts are explicitly set in device, they take priority
-    for (const key of ['timeout','commandTimeout','execTimeout','shellTimeout']) {
+    for (const key of ['timeout', 'commandTimeout', 'execTimeout', 'shellTimeout']) {
       if (device[key] !== undefined && device[key] !== null) {
         base[key] = device[key]
       }
@@ -173,7 +173,7 @@ class NetworkDeviceCollector {
         } else if (settings.shellPrompt instanceof RegExp) {
           shellPrompt = settings.shellPrompt
         }
-      } catch {}
+      } catch { }
     }
 
     // Password: use device.credentials.password only if not null/empty, else use global password
@@ -232,7 +232,7 @@ class NetworkDeviceCollector {
   async executeCommand(connection, command, device) {
     const settings = this.getDeviceSettings(device)
     const connectionMethod = settings.connectionMethod || 'exec'
-    
+
     if (connectionMethod === 'shell') {
       return await this.executeCommandWithShell(connection, command, device)
     } else {
@@ -265,27 +265,27 @@ class NetworkDeviceCollector {
 
   async executeCommandWithShell(connection, command, device) {
     logger.debug(`Executing command with shell() on ${device.ip}: ${command}`)
-    
+
     // Use special D-Link logic if it's a D-Link device
     if (device.brand?.toLowerCase() === 'd-link') {
       return this.executeCommandForDLink(connection, command, device)
     }
-    
+
     const settings = this.getDeviceSettings(device)
-    
+
     return new Promise((resolve, reject) => {
       let fullResult = ''
       let isComplete = false
       let commandTimeout
-      
+
       connection.shell((error, stream) => {
         if (error) {
           reject(error)
           return
         }
-        
+
         logger.debug(`Started shell session for ${device.ip}`)
-        
+
         // Set timeout to prevent hanging
         const timeoutMs = settings.shellTimeout || 30000
         commandTimeout = setTimeout(() => {
@@ -295,23 +295,23 @@ class NetworkDeviceCollector {
             stream.destroy()
           }
         }, timeoutMs)
-        
+
         // Send command immediately
         setTimeout(() => {
           logger.debug(`Sending command to ${device.ip}: ${command}`)
           stream.write(command + '\r\n')
         }, 500)
-        
+
         stream.on('data', (data) => {
           const output = data.toString()
           fullResult += output
-          
+
           // Check for pagination patterns
           if (this.needsMoreInput(output, device)) {
             logger.debug(`Pagination detected for ${device.ip} - sending continuation`)
             const paginationInput = settings.paginationInput || 'a'
             stream.write(paginationInput)
-            
+
             // For D-Link, set flag to wait for more data after pagination
             if (device.brand?.toLowerCase() === 'd-link') {
               setTimeout(() => {
@@ -330,31 +330,31 @@ class NetworkDeviceCollector {
             }
           }
         })
-        
+
         stream.on('close', () => {
           logger.debug(`Shell session closed for ${device.ip}`)
-          
+
           if (commandTimeout) {
             clearTimeout(commandTimeout)
           }
-          
+
           // Clean the result
           let cleanResult = this.cleanShellResult(fullResult, command, device)
-          
+
           if (cleanResult.length > 0) {
             resolve(cleanResult)
           } else {
             reject(new Error('No command output received'))
           }
         })
-        
+
         stream.on('error', (err) => {
           logger.error(`Shell error for ${device.ip}: ${err.message}`)
-          
+
           if (commandTimeout) {
             clearTimeout(commandTimeout)
           }
-          
+
           reject(err)
         })
       })
@@ -371,6 +371,7 @@ class NetworkDeviceCollector {
       let commandTimeout
       let inactivityTimer = null
       let streamClosed = false
+      let logoutSent = false
 
       connection.shell((error, stream) => {
         if (error) {
@@ -397,7 +398,17 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug(`D-Link inactivity timeout (${INACTIVITY_MS} ms): no more data, closing stream`)
               isComplete = true
-              if (!streamClosed) stream.destroy()
+              // Try to send 'logout' before destroy
+              if (!logoutSent && !streamClosed) {
+                logoutSent = true;
+                logger.debug('Sending "logout" to D-Link before closing stream')
+                stream.write('logout\r\n')
+                setTimeout(() => {
+                  if (!streamClosed) stream.destroy()
+                }, 300)
+              } else if (!streamClosed) {
+                stream.destroy()
+              }
             }
           }, INACTIVITY_MS)
         }
@@ -428,9 +439,19 @@ class NetworkDeviceCollector {
             if (!isComplete) {
               logger.debug('D-Link command completed - prompt detected')
               isComplete = true
-              setTimeout(() => {
-                if (!streamClosed) stream.destroy()
-              }, 100)
+              // Try to send 'logout' before destroy
+              if (!logoutSent && !streamClosed) {
+                logoutSent = true;
+                logger.debug('Sending "logout" to D-Link before closing stream')
+                stream.write('logout\r\n')
+                setTimeout(() => {
+                  if (!streamClosed) stream.destroy()
+                }, 300)
+              } else if (!streamClosed) {
+                setTimeout(() => {
+                  stream.destroy()
+                }, 100)
+              }
             }
           }
         })
@@ -486,7 +507,7 @@ class NetworkDeviceCollector {
       /Press any key to continue \(Q to quit\)/i,
       /CTRL\+C ESC q Quit SPACE n Next Page\s*/i
     ]
-    
+
     // Standard patterns for OLTs and other devices
     const standardPatterns = [
       /--More--/i,
@@ -497,11 +518,11 @@ class NetworkDeviceCollector {
       /Type <CR> to continue/i,
       /More\s*$/i
     ]
-    
+
     // Choose patterns based on device brand
     const brand = device.brand?.toLowerCase()
     let patterns
-    
+
     if (brand === 'd-link' || brand === 'dlink') {
       patterns = dlinkPatterns
       // Debug output for D-Link
@@ -515,7 +536,7 @@ class NetworkDeviceCollector {
     } else {
       patterns = standardPatterns
     }
-    
+
     return patterns.some(pattern => pattern.test(output))
   }
 
@@ -525,23 +546,23 @@ class NetworkDeviceCollector {
     const maxAttempts = 50
     const settings = this.getDeviceSettings(device)
     const inputChar = settings.paginationInput || ' '
-    
+
     logger.debug(`Starting exec pagination for ${device.ip} with input: "${inputChar}"`)
-    
+
     while (attempts < maxAttempts) {
       try {
         // Send pagination input
         const moreData = await connection.exec(inputChar)
         additionalOutput += moreData
-        
+
         if (!this.needsMoreInput(moreData, device)) {
           logger.debug(`Pagination completed for ${device.ip} after ${attempts + 1} attempts`)
           break
         }
-        
+
         attempts++
         logger.debug(`Received additional data from ${device.ip} (attempt ${attempts})`)
-        
+
         // Small pause between requests
         await this.sleep(500)
       } catch (error) {
@@ -549,23 +570,23 @@ class NetworkDeviceCollector {
         break
       }
     }
-    
+
     if (attempts >= maxAttempts) {
       logger.warn(`Maximum pagination attempts reached for ${device.ip}`)
     }
-    
+
     return additionalOutput
   }
 
   cleanShellResult(fullResult, command, device) {
     let cleanResult = fullResult
-    
+
     // Remove everything before the command
     const commandIndex = cleanResult.indexOf(command)
     if (commandIndex !== -1) {
       cleanResult = cleanResult.substring(commandIndex + command.length)
     }
-    
+
     // Remove trailing prompts based on device type
     const brand = device.brand?.toLowerCase()
     if (brand === 'd-link' || brand === 'dlink') {
@@ -573,7 +594,7 @@ class NetworkDeviceCollector {
     }
     cleanResult = cleanResult.replace(/[#$>]\s*$/, '')
     cleanResult = cleanResult.trim()
-    
+
     logger.debug(`Cleaned result for ${device.ip}: ${cleanResult.length} chars`)
     return cleanResult
   }
@@ -661,16 +682,16 @@ class NetworkDeviceCollector {
 
   async collectAll() {
     await this.collectConfigs()
-    
+
     // Special pause for D-Link devices before MAC collection
-    const hasDelinkDevices = this.devices.some(device => 
+    const hasDelinkDevices = this.devices.some(device =>
       device.brand?.toLowerCase() === 'd-link')
-    
+
     if (hasDelinkDevices) {
       logger.info('Pausing before MAC table collection for D-Link devices...')
       await this.sleep(5000) // 5 second pause for D-Link
     }
-    
+
     await this.collectMacTables()
   }
 
