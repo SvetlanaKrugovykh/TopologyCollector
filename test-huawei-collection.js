@@ -67,6 +67,10 @@ async function testHuaweiDataCollection() {
     console.log(chalk.white(`Vendor: ${device.vendor} ${device.type.toUpperCase()}`))
 
     const connection = new Telnet()
+    // Log all device output for diagnostics
+    connection.on('data', data => {
+      console.log(chalk.magenta('DEVICE OUTPUT:'), data.toString())
+    })
     try {
       console.log(chalk.yellow(`\nConnecting to ${device.ip}...`))
 
