@@ -83,6 +83,38 @@ Edit the `data/devices.json` file:
 - **commands.config** - Commands for configuration retrieval
 - **commands.mac** - Commands for MAC table retrieval
 - **description** - Device description
+- **appendMissingConfig** (optional) - For D-Link devices: attempt to collect remaining configuration data if initial command doesn't return complete config (default: false)
+
+### Special D-Link Parameters
+
+For D-Link switches that may not return complete configuration data in a single command execution, you can use the `appendMissingConfig` parameter:
+
+```json
+{
+  "ip": "192.168.65.239",
+  "type": "switch",
+  "brand": "D-Link",
+  "model": "DGS-3420-26SC",
+  "appendMissingConfig": true,
+  "commands": {
+    "config": ["show config effective"],
+    "mac": ["show fdb"]
+  },
+  "description": "D-Link Switch with config completion support"
+}
+```
+
+**When to use `appendMissingConfig: true`:**
+- D-Link devices that cut off configuration output mid-stream
+- When you notice incomplete configuration files
+- Configuration data appears in MAC table files instead
+
+**How it works:**
+1. Executes the main configuration command
+2. If `appendMissingConfig: true`, runs the same command again to collect any remaining data
+3. Appends the additional data to the configuration file
+4. Cleans MAC table output from any configuration remnants
+5. Ensures proper `logout` command timing
 
 ## Usage
 
@@ -192,6 +224,13 @@ The application automatically handles the following prompts:
 ### Incomplete Data
 - Increase `COMMAND_TIMEOUT` in .env
 - Check logs for pagination errors
+- For D-Link devices: use `appendMissingConfig: true` if configuration appears incomplete
+- Check if configuration data appears in MAC table files instead of config files
+
+### D-Link Specific Issues
+- **Incomplete configurations**: Add `"appendMissingConfig": true` to device configuration
+- **Configuration data in MAC files**: The `appendMissingConfig` feature automatically cleans this up
+- **Hanging connections**: The system uses proper logout timing and connection cleanup for D-Link devices
 
 ### Encoding Issues
 - Ensure device uses UTF-8 or ASCII
