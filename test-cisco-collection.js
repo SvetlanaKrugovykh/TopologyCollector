@@ -92,26 +92,26 @@ async function testCiscoDataCollection() {
       }
 
       // Collect configuration
-      for (const command of ["show running-config"]) {
-        try {
-          console.log(chalk.cyan(`\n=== Collecting Configuration ===`))
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          const result = await executeCommand(connection, command)
-          if (result && result.trim().length > 0) {
-            console.log(chalk.green(`✓ Command "${command}" successful`))
-            console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`))
-            const configDir = './configs'
-            await fs.mkdir(configDir, { recursive: true })
-            const filename = `${device.ip.replace(/\./g, '_')}.cfg`
-            const filepath = path.join(configDir, filename)
-            await fs.writeFile(filepath, result, 'utf8')
-            console.log(chalk.green(`Configuration saved: ${filepath}`))
-          } else {
-            console.log(chalk.red(`✗ Command "${command}" returned empty result`))
-          }
-        } catch (error) {
-          console.log(chalk.red(`✗ Command "${command}" failed: ${error.message}`))
+      try {
+        console.log(chalk.cyan(`\n=== Collecting Configuration ===`))
+        // Disable paging for Cisco
+        await executeCommand(connection, 'terminal length 0')
+        await new Promise(resolve => setTimeout(resolve, 500))
+        const result = await executeCommand(connection, 'show config')
+        if (result && result.trim().length > 0) {
+          console.log(chalk.green(`✓ Command "show config" successful`))
+          console.log(chalk.gray(`Response preview: ${result.substring(0, 200)}...`))
+          const configDir = './configs'
+          await fs.mkdir(configDir, { recursive: true })
+          const filename = `${device.ip.replace(/\./g, '_')}.cfg`
+          const filepath = path.join(configDir, filename)
+          await fs.writeFile(filepath, result, 'utf8')
+          console.log(chalk.green(`Configuration saved: ${filepath}`))
+        } else {
+          console.log(chalk.red(`✗ Command "show config" returned empty result`))
         }
+      } catch (error) {
+        console.log(chalk.red(`✗ Command "show config" failed: ${error.message}`))
       }
 
       // Collect MAC table
