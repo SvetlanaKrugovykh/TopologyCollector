@@ -386,7 +386,8 @@ class NetworkDeviceCollector {
           const output = data.toString()
           fullResult += output
 
-          logger.debug(`D-Link received: "${output}"`)
+          // Log last 200 chars of each chunk for debug
+          logger.debug(`D-Link output chunk (last 200 chars): "${output.slice(-200)}"`)
 
           // Check for D-Link pagination patterns
           if (this.needsMoreInput(output, device)) {
