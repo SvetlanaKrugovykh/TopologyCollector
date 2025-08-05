@@ -176,17 +176,9 @@ class NetworkDeviceCollector {
       } catch {}
     }
 
-    // Always use globalPassword unless device.credentials.password или device.password явно заданы
-    let usedPassword = null
-    if (device.credentials?.password) {
-      usedPassword = device.credentials.password
-    } else if (device.password) {
-      usedPassword = device.password
-    } else {
-      usedPassword = this.globalPassword
-    }
-
-    // Debug log (маскируем пароль)
+    // Password: only device.credentials.password or global password
+    let usedPassword = device.credentials?.password || this.globalPassword
+    // Debug log (mask password)
     logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
 
     const params = {
