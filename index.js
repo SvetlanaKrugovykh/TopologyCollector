@@ -247,6 +247,88 @@ class NetworkDeviceCollector {
     }
   }
 
+  async connectToDeviceWithPassword(device, password) {
+    const connection = new Telnet()
+
+    // Get connection settings from brand settings or device config
+    const settings = this.getDeviceSettings(device)
+    const timeout = settings.timeout || parseInt(process.env.TELNET_TIMEOUT) || 30000
+    const execTimeout = settings.execTimeout || parseInt(process.env.COMMAND_TIMEOUT) || 10000
+
+    // D-Link: Force cleanup of existing connections
+    if (device.brand?.toLowerCase() === 'd-link') {
+      logger.debug(`D-Link device detected: ${device.ip} - forcing cleanup before connection`)
+    }
+
+    // Use shellPrompt from settings if present, else default
+    let shellPrompt = /[$%#>]/
+    if (settings.shellPrompt) {
+      try {
+        // If shellPrompt is a string like '/.../', convert to RegExp
+        if (typeof settings.shellPrompt === 'string' && settings.shellPrompt.startsWith('/')) {
+          const match = settings.shellPrompt.match(/^\/(.*)\/(.*)$/)
+          if (match) {
+            shellPrompt = new RegExp(match[1], match[2] || '')
+          }
+        } else if (settings.shellPrompt instanceof RegExp) {
+          shellPrompt = settings.shellPrompt
+        }
+      } catch { }
+    }
+
+    // Debug log (mask password)
+    logger.debug(`Password for ${device.ip}: ${password ? password.replace(/./g, '*') : '[empty]'}`)
+
+    const params = {
+      host: device.ip,
+      port: 23,
+      shellPrompt: shellPrompt,
+      timeout: timeout,
+      loginPrompt: /(username|login)[: ]*$/i,
+      passwordPrompt: /password[: ]*$/i,
+      username: device.credentials?.username || device.username || 'admin',
+      password: password,
+      execTimeout: execTimeout,
+      debug: false
+    }
+
+    try {
+      logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
+      logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
+
+      // D-Link: try to clear possible hanging connections first
+      if (device.brand?.toLowerCase() === 'd-link') {
+        logger.debug(`D-Link connection attempt to ${device.ip}`)
+      }
+
+      await connection.connect(params)
+      logger.info(`Successfully connected to ${device.ip}`)
+
+      // Enter privileged mode if required
+      logger.debug(`Checking enable requirements for ${device.ip}: settings.requiresEnable=${settings.requiresEnable}, device.requiresEnable=${device.requiresEnable}, device.enableCommand=${device.enableCommand}`)
+
+      if ((settings.requiresEnable || device.requiresEnable) && device.enableCommand) {
+        try {
+          console.log(chalk.cyan(`✓ Enable condition met for ${device.ip} - sending command: ${device.enableCommand}`))
+          logger.info(`Entering privileged mode on ${device.ip} with command: ${device.enableCommand}`)
+          await connection.exec(device.enableCommand)
+          console.log(chalk.green(`✓ Successfully entered privileged mode on ${device.ip}`))
+          logger.info(`Successfully entered privileged mode on ${device.ip}`)
+        } catch (error) {
+          console.log(chalk.red(`✗ Failed to enter privileged mode on ${device.ip}: ${error.message}`))
+          logger.warn(`Failed to enter privileged mode on ${device.ip}: ${error.message}`)
+        }
+      } else {
+        console.log(chalk.gray(`- No enable command needed for ${device.ip}`))
+      }
+
+      return connection
+    } catch (error) {
+      logger.error(`Connection error to ${device.ip}: ${error.message}`)
+      throw error
+    }
+  }
+
   async executeCommand(connection, command, device) {
     const settings = this.getDeviceSettings(device)
     const connectionMethod = settings.connectionMethod || 'exec'
@@ -622,10 +704,22 @@ class NetworkDeviceCollector {
 
     for (const device of this.devices) {
       const brand = (device.brand || device.vendor || '').toLowerCase()
+      
+      // Ask for password once per device (testing)
+      const answers = await inquirer.prompt([
+        {
+          type: 'password',
+          name: 'password',
+          message: `Enter password for device ${device.ip}:`,
+          mask: '*'
+        }
+      ])
+      const devicePassword = answers.password
+      
       for (const command of device.commands.config) {
         let connection = null
         try {
-          connection = await this.connectToDevice(device)
+          connection = await this.connectToDeviceWithPassword(device, devicePassword)
           // For Cisco: send 'terminal length 0' before config command
           if (brand === 'cisco') {
             try {
