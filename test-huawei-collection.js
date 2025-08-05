@@ -77,7 +77,7 @@ async function testHuaweiDataCollection() {
       const params = {
         host: device.ip,
         port: 23,
-        shellPrompt: /[$%#>]/,
+        shellPrompt: /(<.*?>|\[.*?\][#>]?)/,
         timeout: 60000,
         loginPrompt: /(username|login)[: ]*$/i,
         passwordPrompt: /password[: ]*$/i,
