@@ -188,8 +188,16 @@ class NetworkDeviceCollector {
         usedPassword = device.credentials.password
       }
     }
-    // Debug log (mask password)
-    logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
+    
+    // Debug log (mask password but show length and first/last char for verification)
+    if (usedPassword) {
+      const masked = usedPassword.replace(/./g, '*')
+      const firstChar = usedPassword.charAt(0)
+      const lastChar = usedPassword.charAt(usedPassword.length - 1)
+      logger.debug(`Password for ${device.ip}: ${masked} (length: ${usedPassword.length}, first: '${firstChar}', last: '${lastChar}')`)
+    } else {
+      logger.debug(`Password for ${device.ip}: [empty]`)
+    }
 
     const params = {
       host: device.ip,
@@ -204,6 +212,16 @@ class NetworkDeviceCollector {
       debug: false
     }
 
+    // Additional debug for connection params
+    logger.debug(`Connection params for ${device.ip}:`, {
+      host: params.host,
+      port: params.port,
+      username: params.username,
+      passwordLength: params.password ? params.password.length : 0,
+      timeout: params.timeout,
+      execTimeout: params.execTimeout
+    })
+
     try {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
       logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
@@ -215,6 +233,7 @@ class NetworkDeviceCollector {
       
       await connection.connect(params)
       logger.info(`Successfully connected to ${device.ip}`)
+      logger.debug(`Connection established successfully for ${device.ip} with username: ${params.username}`)
 
       // Enter privileged mode if required
       logger.debug(`Checking enable requirements for ${device.ip}: settings.requiresEnable=${settings.requiresEnable}, device.requiresEnable=${device.requiresEnable}, device.enableCommand=${device.enableCommand}`)
@@ -237,6 +256,12 @@ class NetworkDeviceCollector {
       return connection
     } catch (error) {
       logger.error(`Connection error to ${device.ip}: ${error.message}`)
+      logger.debug(`Connection failure details for ${device.ip}:`, {
+        error: error.message,
+        username: params.username,
+        passwordProvided: !!params.password,
+        timeout: params.timeout
+      })
       throw error
     }
   }
