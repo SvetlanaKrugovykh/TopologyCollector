@@ -73,7 +73,7 @@ async function testCiscoDataCollection() {
       const params = {
         host: device.ip,
         port: 23,
-        shellPrompt: /[#>]/,
+        shellPrompt: /[a-zA-Z0-9_.-]+[#>]/,
         timeout: 60000,
         loginPrompt: /(username|login)[: ]*$/i,
         passwordPrompt: /password[: ]*$/i,
@@ -92,9 +92,10 @@ async function testCiscoDataCollection() {
       }
 
       // Collect configuration
-      for (const command of device.commands.config) {
+      for (const command of ["show running-config"]) {
         try {
           console.log(chalk.cyan(`\n=== Collecting Configuration ===`))
+          await new Promise(resolve => setTimeout(resolve, 1000))
           const result = await executeCommand(connection, command)
           if (result && result.trim().length > 0) {
             console.log(chalk.green(`✓ Command "${command}" successful`))
