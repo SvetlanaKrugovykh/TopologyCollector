@@ -1,3 +1,20 @@
+## Batch Collection for All Device JSON Files
+
+The script `run-all-json.js` allows you to automatically run the collection process for all device JSON files in the `data` directory (except `brandSettings.json`).
+
+**Usage:**
+
+```
+node run-all-json.js
+```
+
+**How it works:**
+- Iterates over all `.json` files in the `data` directory, except `brandSettings.json`.
+- For each file, it runs the collection process as if it were the active devices file.
+- If an error occurs for a file, the script logs the error and continues with the next file.
+- At the end, all device files will have been processed, regardless of individual errors.
+
+This is useful for batch processing or testing all device sets without changing environment variables or editing `.env`.
 # Network Device Configuration Collector
 
 System for automatic collection of configurations and MAC tables from network equipment (switches, OLTs) via Telnet.
