@@ -232,16 +232,19 @@ class NetworkDeviceCollector {
   async executeCommandWithExec(connection, command, device) {
     try {
       logger.debug(`Executing command with exec() on ${device.ip}: ${command}`)
-      
-      // Send command
       let result = await connection.exec(command)
-      
-      // Check if additional interaction is required
-      if (this.needsMoreInput(result, device)) {
-        logger.info(`Device ${device.ip} requires additional input`)
-        result += await this.handleMoreInputWithExec(connection, device)
+      let attempts = 0
+      const maxAttempts = 200
+      // Keep sending pagination input until prompt is gone (like standalone test)
+      while (this.needsMoreInput(result, device) && attempts < maxAttempts) {
+        logger.info(`Device ${device.ip} requires additional input (pagination)`)
+        const moreData = await connection.exec(this.getDeviceSettings(device).paginationInput || ' ')
+        result += moreData
+        attempts++
       }
-      
+      if (attempts >= maxAttempts) {
+        logger.warn(`Maximum pagination attempts reached for ${device.ip}`)
+      }
       return result
     } catch (error) {
       logger.error(`Error executing command "${command}" on ${device.ip}: ${error.message}`)
