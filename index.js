@@ -57,7 +57,7 @@ class NetworkDeviceCollector {
       // Load device list
       await this.loadDevices()
 
-      // Ask user for password
+      // Ask user for password (after loading devices so we can show context)
       await this.askForPassword()
 
       logger.info('Initialization completed successfully')
@@ -110,11 +110,27 @@ class NetworkDeviceCollector {
   }
 
   async askForPassword() {
+    // Show context information if available
+    const deviceFileName = path.basename(this.devicesFile)
+    let promptMessage = 'Enter administrator password for devices:'
+    
+    if (deviceFileName && deviceFileName !== 'devices.json') {
+      promptMessage = `Enter administrator password for devices in ${deviceFileName}:`
+    }
+    
+    // Show first device info if available
+    if (this.devices && this.devices.length > 0) {
+      const firstDevice = this.devices[0]
+      console.log(chalk.yellow(`\nDevice file: ${deviceFileName}`))
+      console.log(chalk.yellow(`First device: ${firstDevice.ip} - ${firstDevice.description || firstDevice.name || 'No description'}`))
+      console.log(chalk.yellow(`Total devices: ${this.devices.length}`))
+    }
+    
     const answers = await inquirer.prompt([
       {
         type: 'password',
         name: 'password',
-        message: 'Enter administrator password for devices:',
+        message: promptMessage,
         mask: '*'
       }
     ])

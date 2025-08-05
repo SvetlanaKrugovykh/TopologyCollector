@@ -25,7 +25,26 @@ async function runForAllJsonFiles() {
 
   for (const file of jsonFiles) {
     const absPath = path.join(dataDir, file)
-    console.log(chalk.blue(`\n=== Running collection for ${file} ===`))
+    console.log(chalk.blue(`\n=== Processing file: ${file} ===`))
+    
+    try {
+      // Read and parse the device file to show preview info
+      const deviceData = JSON.parse(await fs.readFile(absPath, 'utf8'))
+      if (Array.isArray(deviceData) && deviceData.length > 0) {
+        const firstDevice = deviceData[0]
+        console.log(chalk.cyan(`File contains ${deviceData.length} device(s)`))
+        console.log(chalk.cyan(`First device: ${firstDevice.ip} - ${firstDevice.description || firstDevice.name || 'No description'}`))
+        console.log(chalk.cyan(`Device type: ${firstDevice.type || 'Unknown'} / ${firstDevice.brand || firstDevice.vendor || 'Unknown brand'}`))
+      } else {
+        console.log(chalk.yellow(`File ${file} appears to be empty or invalid`))
+        continue
+      }
+    } catch (parseErr) {
+      console.error(chalk.red(`Failed to parse ${file}: ${parseErr.message}`))
+      continue
+    }
+
+    console.log(chalk.blue(`\n--- Starting collection for ${file} ---`))
     try {
       // Set devices file for this run
       const collector = new TopologyCollector()
