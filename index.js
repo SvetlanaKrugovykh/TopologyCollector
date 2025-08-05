@@ -192,13 +192,8 @@ class NetworkDeviceCollector {
       } catch { }
     }
 
-    // Password: use device.credentials.password only if not null/empty, else use global password
-    let usedPassword = this.globalPassword
-    if (device.credentials && Object.prototype.hasOwnProperty.call(device.credentials, 'password')) {
-      if (device.credentials.password !== null && device.credentials.password !== '') {
-        usedPassword = device.credentials.password
-      }
-    }
+    // Password: use fresh password for each device (testing)
+    let usedPassword = freshPassword
     // Debug log (mask password)
     logger.debug(`Password for ${device.ip}: ${usedPassword ? usedPassword.replace(/./g, '*') : '[empty]'}`)
 
@@ -218,12 +213,12 @@ class NetworkDeviceCollector {
     try {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
       logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
-      
+
       // D-Link: try to clear possible hanging connections first
       if (device.brand?.toLowerCase() === 'd-link') {
         logger.debug(`D-Link connection attempt to ${device.ip}`)
       }
-      
+
       await connection.connect(params)
       logger.info(`Successfully connected to ${device.ip}`)
 
