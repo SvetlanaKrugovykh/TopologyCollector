@@ -704,7 +704,7 @@ class NetworkDeviceCollector {
 
     for (const device of this.devices) {
       const brand = (device.brand || device.vendor || '').toLowerCase()
-      
+
       // Ask for password once per device (testing)
       const answers = await inquirer.prompt([
         {
@@ -715,7 +715,7 @@ class NetworkDeviceCollector {
         }
       ])
       const devicePassword = answers.password
-      
+
       for (const command of device.commands.config) {
         let connection = null
         try {
