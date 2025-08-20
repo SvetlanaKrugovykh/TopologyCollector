@@ -16,8 +16,8 @@ async function runForAllJsonFiles() {
     process.exit(1)
   }
 
-  // Filter all .json except brandSettings.json
-  const jsonFiles = files.filter(f => f.endsWith('.json') && f !== 'brandSettings.json')
+  // Filter all .json except brandSettings.json and sort alphabetically
+  const jsonFiles = files.filter(f => f.endsWith('.json') && f !== 'brandSettings.json').sort((a, b) => a.localeCompare(b))
   if (jsonFiles.length === 0) {
     console.log(chalk.yellow('No device JSON files found in data directory.'))
     return
