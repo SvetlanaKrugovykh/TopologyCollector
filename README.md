@@ -142,6 +142,20 @@ node index.js --macs       # MAC tables
 node index.js --all        # everything
 ```
 
+### Selecting Device File from Command Line
+
+You can override the device file (DEVICES_FILE) from the command line using the `--devices=FILENAME.json` argument. This allows you to run the collector for any device set without editing the .env file.
+
+**Examples:**
+
+```bash
+node index.js --devices=OLTs.json --all         # Collect all for OLTs.json
+node index.js --devices=DLinks.json --configs   # Only configs for DLinks.json
+node index.js --devices=devices.json --macs     # Only MAC tables for devices.json
+```
+
+If `--devices=...` is not specified, the file from `.env` (DEVICES_FILE) will be used by default.
+
 ## Supported Vendors and Commands
 
 ### Cisco

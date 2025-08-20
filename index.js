@@ -31,7 +31,7 @@ const logger = winston.createLogger({
 })
 
 class NetworkDeviceCollector {
-  constructor() {
+  constructor(devicesFileOverride = null) {
     this.devices = []
     this.brandSettings = {}
     this.globalPassword = null
@@ -41,7 +41,10 @@ class NetworkDeviceCollector {
 
     // Build full path to devices file
     const dataDir = process.env.DATA_DIR || './data'
-    const devicesFileName = process.env.DEVICES_FILE || 'devices.json'
+    let devicesFileName = process.env.DEVICES_FILE || 'devices.json'
+    if (devicesFileOverride) {
+      devicesFileName = devicesFileOverride
+    }
     this.devicesFile = path.join(dataDir, devicesFileName)
     this.brandSettingsFile = path.join(dataDir, 'brandSettings.json')
   }
@@ -936,7 +939,14 @@ class NetworkDeviceCollector {
 // Main function
 async function main() {
   const args = process.argv.slice(2)
-  const collector = new NetworkDeviceCollector()
+  // Support --devices=FILENAME.json argument
+  let devicesFileOverride = null
+  for (const arg of args) {
+    if (arg.startsWith('--devices=')) {
+      devicesFileOverride = arg.replace('--devices=', '').trim()
+    }
+  }
+  const collector = new NetworkDeviceCollector(devicesFileOverride)
 
   try {
     await collector.init()
