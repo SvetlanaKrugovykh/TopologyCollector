@@ -91,10 +91,10 @@ For D-Link switches that may not return complete configuration data in a single 
 
 ```json
 {
-  "ip": "192.168.65.239",
+  "ip": "192.168.1.2",
   "type": "switch",
   "brand": "D-Link",
-  "model": "DGS-3420-26SC",
+  "model": "DGS-6000",
   "appendMissingConfig": true,
   "commands": {
     "config": ["show config effective"],
