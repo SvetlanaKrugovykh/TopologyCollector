@@ -255,7 +255,7 @@ async function testDLinkDataCollection() {
   try {
     // Device configuration for D-Link switch
     const device = {
-      ip: "192.168.165.212",
+      ip: process.env.TEST_DLINK_IP || "192.168.1.101",
       type: "switch",
       vendor: "D-Link",
       username: "admin",

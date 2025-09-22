@@ -201,7 +201,7 @@ async function testDataCollection() {
   try {
     // Device configuration
     const device = {
-      ip: "192.168.165.191",
+      ip: process.env.TEST_DEVICE_IP || "192.168.1.102",
       type: "olt",
       vendor: "BDCOM",
       username: "admin",

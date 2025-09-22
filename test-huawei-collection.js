@@ -46,7 +46,7 @@ async function testHuaweiDataCollection() {
       { type: 'password', name: 'password', message: 'Enter device password:', mask: '*' }
     ])
     const device = {
-      ip: '192.168.165.33',
+      ip: process.env.TEST_HUAWEI_IP || '192.168.1.100',
       type: 'switch',
       vendor: 'Huawei',
       password: answers.password,

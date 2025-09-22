@@ -228,6 +228,48 @@ The application automatically handles the following prompts:
 - Colored console output
 - Various logging levels (debug, info, warn, error)
 
+## Testing
+
+The project includes several test scripts for different device types:
+- `test-huawei-collection.js` - Test Huawei device collection
+- `test-cisco-collection.js` - Test Cisco device collection  
+- `test-dlink-collection.js` - Test D-Link device collection
+- `test-collection.js` - Test BDCOM/OLT device collection
+- `test-connection.js` - Test basic connections
+- `test-integration.js` - Integration tests
+
+**Test Configuration:**
+
+All test scripts use environment variables for IP addresses. Configure them in your `.env` file:
+
+```bash
+# Test IP addresses - replace with your actual device IPs for testing
+TEST_HUAWEI_IP=192.168.1.100
+TEST_DLINK_IP=192.168.1.101  
+TEST_DEVICE_IP=192.168.1.102
+TEST_CISCO_IP=192.168.1.103
+
+# Test credentials - replace with your actual test credentials
+TEST_USERNAME=admin
+TEST_PASSWORD=password123
+```
+
+**Running Tests:**
+
+```bash
+# Test specific device type
+node test-huawei-collection.js
+node test-cisco-collection.js
+node test-dlink-collection.js
+node test-collection.js
+
+# Test connection
+node test-connection.js
+
+# Integration test
+node test-integration.js
+```
+
 ## Troubleshooting
 
 ### Connection Issues

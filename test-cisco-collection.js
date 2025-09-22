@@ -43,7 +43,7 @@ async function testCiscoDataCollection() {
       { type: 'password', name: 'password', message: 'Enter device password:', mask: '*' }
     ])
     const device = {
-      ip: '192.168.165.199',
+      ip: process.env.TEST_CISCO_IP || '192.168.1.103',
       type: 'switch',
       vendor: 'Cisco',
       username: 'admin',
