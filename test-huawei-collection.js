@@ -150,7 +150,7 @@ async function testHuaweiDataCollection() {
       console.log(chalk.gray('Connection closed'))
     } catch (error) {
       console.log(chalk.red(`Connection error: ${error.message}`))
-      try { await connection.end() } catch {}
+      try { await connection.end() } catch { }
     }
     console.log(chalk.green('\n✓ Data collection completed successfully'))
   } catch (error) {
