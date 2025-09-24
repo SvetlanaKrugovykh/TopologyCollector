@@ -58,19 +58,19 @@ async function testConnection() {
 
     await connection.connect(params)
     console.log(chalk.green(`✓ Successful connection to ${answers.ip}`))
-    
+
     // Test command
     console.log(chalk.yellow('\nExecuting test command...'))
     const result = await connection.exec('help')
     console.log(chalk.cyan('\nResult of "help" command:'))
     console.log(result.substring(0, 1000) + (result.length > 1000 ? '...' : ''))
-    
+
     await connection.end()
     console.log(chalk.green('\n✓ Connection closed successfully'))
 
   } catch (error) {
     console.error(chalk.red(`\n✗ Connection error: ${error.message}`))
-    
+
     if (error.message.includes('ECONNREFUSED')) {
       console.log(chalk.yellow('Possible causes:'))
       console.log('  - Telnet not enabled on device')

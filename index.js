@@ -116,11 +116,11 @@ class NetworkDeviceCollector {
     // Show context information if available
     const deviceFileName = path.basename(this.devicesFile)
     let promptMessage = 'Enter administrator password for devices:'
-    
+
     if (deviceFileName && deviceFileName !== 'devices.json') {
       promptMessage = `Enter administrator password for devices in ${deviceFileName}:`
     }
-    
+
     // Show first device info if available
     if (this.devices && this.devices.length > 0) {
       const firstDevice = this.devices[0]
@@ -128,7 +128,7 @@ class NetworkDeviceCollector {
       console.log(chalk.yellow(`First device: ${firstDevice.ip} - ${firstDevice.description || firstDevice.name || 'No description'}`))
       console.log(chalk.yellow(`Total devices: ${this.devices.length}`))
     }
-    
+
     const answers = await inquirer.prompt([
       {
         type: 'password',
@@ -728,7 +728,7 @@ class NetworkDeviceCollector {
 
       try {
         connection = await this.connectToDevice(device)
-        
+
         // For Cisco: send 'terminal length 0' before commands
         if (brand === 'cisco') {
           try {
@@ -774,7 +774,7 @@ class NetworkDeviceCollector {
             const isLastCommand = commandIndex === totalCommands
             logger.info(`D-Link ${device.ip}: Attempting to collect remaining configuration data`)
             const remainingOutput = await this.executeCommand(connection, 'show config effective', device, isLastCommand)
-            
+
             // Check if we got meaningful remaining config (not just prompt)
             if (remainingOutput && remainingOutput.length > 50 && !remainingOutput.includes('Command: logout')) {
               // Append to existing config file
@@ -787,7 +787,7 @@ class NetworkDeviceCollector {
             } else {
               logger.debug(`D-Link ${device.ip}: No meaningful remaining config data found`)
             }
-            
+
             // Pause before MAC commands (only if not the last command)
             if (!isLastCommand) {
               await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
@@ -803,7 +803,7 @@ class NetworkDeviceCollector {
             commandIndex++
             const isLastCommand = commandIndex === totalCommands
             const output = await this.executeCommand(connection, command, device, isLastCommand)
-            
+
             // For D-Link devices: clean output from config remnants
             let cleanOutput = output
             if (brand === 'd-link') {
@@ -818,18 +818,18 @@ class NetworkDeviceCollector {
                 /Command: logout.*$/gs,
                 /\*+\s*Logout\s*\*+/gs
               ]
-              
+
               configPatterns.forEach(pattern => {
                 cleanOutput = cleanOutput.replace(pattern, '')
               })
-              
+
               // Remove empty lines
               cleanOutput = cleanOutput.replace(/^\s*[\r\n]/gm, '')
               cleanOutput = cleanOutput.trim()
-              
+
               logger.debug(`D-Link ${device.ip}: Cleaned MAC output from ${output.length} to ${cleanOutput.length} chars`)
             }
-            
+
             // Save MAC table
             const filename = `${device.ip.replace(/\./g, '_')}.mac`
             const filepath = path.join(this.macTablesDir, filename)
