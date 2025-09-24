@@ -218,6 +218,12 @@ class NetworkDeviceCollector {
       debug: false
     }
 
+    // Add source IP if specified in environment
+    if (process.env.TELNET_SOURCE_IP) {
+      params.localAddress = process.env.TELNET_SOURCE_IP
+      logger.debug(`Using source IP: ${process.env.TELNET_SOURCE_IP} for connection to ${device.ip}`)
+    }
+
     try {
       logger.info(`Connecting to device ${device.ip} (${device.name || device.description})`)
       logger.debug(`Connection params: host=${device.ip}, timeout=${timeout}, execTimeout=${execTimeout}`)
@@ -298,6 +304,12 @@ class NetworkDeviceCollector {
       password: password,
       execTimeout: execTimeout,
       debug: false
+    }
+
+    // Add source IP if specified in environment
+    if (process.env.TELNET_SOURCE_IP) {
+      params.localAddress = process.env.TELNET_SOURCE_IP
+      logger.debug(`Using source IP: ${process.env.TELNET_SOURCE_IP} for connection to ${device.ip}`)
     }
 
     try {

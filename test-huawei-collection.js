@@ -86,6 +86,13 @@ async function testHuaweiDataCollection() {
         execTimeout: 60000,
         debug: true
       }
+
+      // Add source IP if specified in environment
+      if (process.env.TELNET_SOURCE_IP) {
+        params.localAddress = process.env.TELNET_SOURCE_IP
+        console.log(chalk.blue(`Using source IP: ${process.env.TELNET_SOURCE_IP}`))
+      }
+
       await connection.connect(params)
       console.log(chalk.green(`✓ Connected to ${device.ip}`))
       // Send empty command to clear buffer and get prompt

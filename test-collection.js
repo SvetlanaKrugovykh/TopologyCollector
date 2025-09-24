@@ -169,6 +169,12 @@ async function connectAndExecuteCommand(device, password, command, commandType) 
       debug: false
     }
 
+    // Add source IP if specified in environment
+    if (process.env.TELNET_SOURCE_IP) {
+      params.localAddress = process.env.TELNET_SOURCE_IP
+      console.log(chalk.blue(`Using source IP: ${process.env.TELNET_SOURCE_IP}`))
+    }
+
     await connection.connect(params)
     console.log(chalk.green(`✓ Connected to ${device.ip}`))
 
@@ -256,6 +262,11 @@ async function testDataCollection() {
           password: password,
           execTimeout: 5000,
           debug: false
+        }
+
+        // Add source IP if specified in environment
+        if (process.env.TELNET_SOURCE_IP) {
+          testParams.localAddress = process.env.TELNET_SOURCE_IP
         }
 
         await testConnection.connect(testParams)

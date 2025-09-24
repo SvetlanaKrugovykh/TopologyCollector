@@ -199,6 +199,11 @@ TELNET_TIMEOUT=30000
 COMMAND_TIMEOUT=10000
 LOGIN_TIMEOUT=5000
 
+# Connection settings
+# Specify source IP address for telnet connections (optional)
+# Useful when server has multiple network interfaces
+TELNET_SOURCE_IP=192.168.1.100
+
 # Pause between commands
 COMMAND_DELAY=2000
 
