@@ -656,6 +656,7 @@ class NetworkDeviceCollector {
     // Standard patterns for OLTs and other devices
     const standardPatterns = [
       /--More--/i,
+      /\s+--More--\s*/i,    // BDCOM specific pattern with spaces
       /Press any key to continue/i,
       /Press SPACE to continue/i,
       /Press Enter to continue/i,
