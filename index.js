@@ -680,7 +680,7 @@ class NetworkDeviceCollector {
       return hasMore
     } else {
       patterns = standardPatterns
-      
+
       // Debug output for BDCOM
       if (brand === 'bdcom' && device.ip === process.env.DEBUG_DEVICE_IP) {
         const hasMore = patterns.some(pattern => pattern.test(output))
