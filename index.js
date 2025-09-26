@@ -680,6 +680,17 @@ class NetworkDeviceCollector {
       return hasMore
     } else {
       patterns = standardPatterns
+      
+      // Debug output for BDCOM
+      if (brand === 'bdcom' && device.ip === process.env.DEBUG_DEVICE_IP) {
+        const hasMore = patterns.some(pattern => pattern.test(output))
+        if (hasMore) {
+          logger.debug(`BDCOM pagination pattern matched in: "${output.slice(-100)}"`)
+        } else {
+          logger.debug(`BDCOM pagination pattern NOT matched in: "${output.slice(-100)}"`)
+        }
+        return hasMore
+      }
     }
 
     return patterns.some(pattern => pattern.test(output))
