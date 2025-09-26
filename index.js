@@ -431,7 +431,7 @@ class NetworkDeviceCollector {
         setTimeout(() => {
           logger.debug(`Sending command to ${device.ip}: ${command}`)
           stream.write(command + '\r\n')
-          
+
           // Add timeout specifically for problematic BDCOM MAC device
           if (device.brand?.toLowerCase() === 'bdcom' && command.includes('mac') && device.ip === process.env.DEBUG_DEVICE_IP) {
             setTimeout(() => {
@@ -445,7 +445,7 @@ class NetworkDeviceCollector {
         stream.on('data', (data) => {
           const output = data.toString()
           fullResult += output
-          
+
           // Add debugging for specific BDCOM MAC table issue
           if (device.brand?.toLowerCase() === 'bdcom' && command.includes('mac') && device.ip === process.env.DEBUG_DEVICE_IP) {
             logger.debug(`BDCOM MAC data received from ${device.ip}: ${output.length} chars, last 100 chars: "${output.slice(-100)}"`)
