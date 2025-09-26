@@ -913,7 +913,7 @@ class NetworkDeviceCollector {
 
   async collectConfigs() {
     logger.info('Starting configuration collection only')
-    
+
     for (const device of this.devices) {
       const brand = (device.brand || device.vendor || '').toLowerCase()
       let connection = null
