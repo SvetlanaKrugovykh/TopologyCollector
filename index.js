@@ -526,6 +526,10 @@ class NetworkDeviceCollector {
 
         logger.debug('Started D-Link shell session')
 
+        // Get D-Link brand settings for timeouts
+        const brandSettings = this.brandSettings['D-Link'] || {}
+        const commandTimeoutMs = brandSettings.commandTimeout || 600000 // 10 minutes default
+
         // Set a timeout to prevent hanging
         commandTimeout = setTimeout(() => {
           if (!isComplete) {
@@ -533,10 +537,12 @@ class NetworkDeviceCollector {
             isComplete = true
             if (!streamClosed) stream.destroy()
           }
-        }, 30000) // 30 second timeout
+        }, commandTimeoutMs)
 
-        // Allow per-device override via inactivityTimeout (ms) in JSON, else default 1500
-        const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0) ? device.inactivityTimeout : 1500
+        // Allow per-device override via inactivityTimeout (ms) in JSON, else use brand settings
+        const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0) 
+          ? device.inactivityTimeout 
+          : (brandSettings.inactivityTimeout || 60000) // Use brand settings or 60sec default
         function resetInactivityTimer() {
           if (inactivityTimer) clearTimeout(inactivityTimer)
           inactivityTimer = setTimeout(() => {
