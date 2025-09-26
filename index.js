@@ -416,15 +416,40 @@ class NetworkDeviceCollector {
           }
         }, timeoutMs)
 
+        // Special shorter timeout for specific problematic BDCOM MAC device
+        if (device.brand?.toLowerCase() === 'bdcom' && command.includes('mac') && device.ip === process.env.DEBUG_DEVICE_IP) {
+          setTimeout(() => {
+            if (!isComplete && fullResult.length > 1000) {
+              logger.warn(`BDCOM MAC: Force completing after 30s, got ${fullResult.length} chars from ${device.ip}`)
+              isComplete = true
+              stream.destroy()
+            }
+          }, 30000)
+        }
+
         // Send command immediately
         setTimeout(() => {
           logger.debug(`Sending command to ${device.ip}: ${command}`)
           stream.write(command + '\r\n')
+          
+          // Add timeout specifically for problematic BDCOM MAC device
+          if (device.brand?.toLowerCase() === 'bdcom' && command.includes('mac') && device.ip === process.env.DEBUG_DEVICE_IP) {
+            setTimeout(() => {
+              if (fullResult.length < 100) {
+                logger.warn(`BDCOM MAC: No significant data received after 10s from ${device.ip}, fullResult length: ${fullResult.length}`)
+              }
+            }, 10000)
+          }
         }, 500)
 
         stream.on('data', (data) => {
           const output = data.toString()
           fullResult += output
+          
+          // Add debugging for specific BDCOM MAC table issue
+          if (device.brand?.toLowerCase() === 'bdcom' && command.includes('mac') && device.ip === process.env.DEBUG_DEVICE_IP) {
+            logger.debug(`BDCOM MAC data received from ${device.ip}: ${output.length} chars, last 100 chars: "${output.slice(-100)}"`)
+          }
 
           // Check for pagination patterns
           if (this.needsMoreInput(output, device)) {
