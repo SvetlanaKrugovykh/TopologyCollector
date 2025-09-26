@@ -1047,8 +1047,12 @@ async function main() {
 
     if (args.includes('--config') || args.includes('--configs')) {
       await collector.collectConfigs()
+      logger.info('Configuration collection completed')
+      return
     } else if (args.includes('--mac') || args.includes('--macs')) {
       await collector.collectMacTables()
+      logger.info('MAC table collection completed')
+      return
     } else if (args.includes('--all')) {
       await collector.collectAll()
     } else {
