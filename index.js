@@ -756,7 +756,7 @@ class NetworkDeviceCollector {
     return cleanResult
   }
 
-  async collectConfigs() {
+  async collectAll() {
     logger.info('Starting configuration and MAC table collection')
 
     for (const device of this.devices) {
@@ -911,6 +911,55 @@ class NetworkDeviceCollector {
     }
   }
 
+  async collectConfigs() {
+    logger.info('Starting configuration collection only')
+    
+    for (const device of this.devices) {
+      const brand = (device.brand || device.vendor || '').toLowerCase()
+      let connection = null
+
+      try {
+        connection = await this.connectToDevice(device)
+
+        // For Cisco: send 'terminal length 0' before commands
+        if (brand === 'cisco') {
+          try {
+            await this.executeCommand(connection, 'terminal length 0', device)
+            await this.sleep(500)
+          } catch (e) {
+            logger.warn(`Failed to set terminal length 0 on ${device.ip}: ${e.message}`)
+          }
+        }
+
+        // Collect only configurations
+        for (const command of device.commands.config) {
+          try {
+            const output = await this.executeCommand(connection, command, device, true)
+            // Save configuration
+            const filename = `${device.ip.replace(/\./g, '_')}.cfg`
+            const filepath = path.join(this.configsDir, filename)
+            await fs.writeFile(filepath, output, 'utf8')
+            logger.info(`Configuration saved: ${filepath}`)
+          } catch (error) {
+            logger.error(`Error collecting configuration from ${device.ip} with command "${command}": ${error.message}`)
+          }
+        }
+
+      } catch (error) {
+        logger.error(`Error connecting to ${device.ip}: ${error.message}`)
+      } finally {
+        if (connection) {
+          try {
+            logger.debug(`Closing connection to ${device.ip}`)
+            await connection.end()
+          } catch (e) {
+            logger.debug(`Error closing connection to ${device.ip}: ${e.message}`)
+          }
+        }
+      }
+    }
+  }
+
   async collectMacTables() {
     logger.info('Starting MAC table collection')
     for (const device of this.devices) {
@@ -965,11 +1014,6 @@ class NetworkDeviceCollector {
         await this.sleep(parseInt(process.env.COMMAND_DELAY) || 2000)
       }
     }
-  }
-
-  async collectAll() {
-    // Now collectConfigs handles both configs and MAC tables in one session
-    await this.collectConfigs()
   }
 
   sleep(ms) {
