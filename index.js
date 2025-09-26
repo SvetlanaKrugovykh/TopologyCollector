@@ -964,9 +964,9 @@ async function main() {
     await collector.init()
     await collector.showDeviceList()
 
-    if (args.includes('--configs')) {
+    if (args.includes('--config') || args.includes('--configs')) {
       await collector.collectConfigs()
-    } else if (args.includes('--macs')) {
+    } else if (args.includes('--mac') || args.includes('--macs')) {
       await collector.collectMacTables()
     } else if (args.includes('--all')) {
       await collector.collectAll()
