@@ -540,8 +540,8 @@ class NetworkDeviceCollector {
         }, commandTimeoutMs)
 
         // Allow per-device override via inactivityTimeout (ms) in JSON, else use brand settings
-        const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0) 
-          ? device.inactivityTimeout 
+        const INACTIVITY_MS = (typeof device.inactivityTimeout === 'number' && device.inactivityTimeout > 0)
+          ? device.inactivityTimeout
           : (brandSettings.inactivityTimeout || 60000) // Use brand settings or 60sec default
         function resetInactivityTimer() {
           if (inactivityTimer) clearTimeout(inactivityTimer)
